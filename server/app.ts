@@ -1,0 +1,167 @@
+import Fastify, { type FastifyInstance } from 'fastify';
+import fastifyStatic from '@fastify/static';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import type { DatabaseSync } from './db.ts';
+import { isFeedType, type FeedType } from './db.ts';
+import type { FeedService } from './feedService.ts';
+import { AppError } from './errors.ts';
+import * as repo from './repository.ts';
+
+export interface AppOptions {
+  db: DatabaseSync;
+  feedService: FeedService;
+  staticDir?: string;
+  pollIntervalMinutes?: number;
+  logger?: boolean;
+}
+
+const VERSION = '0.1.0';
+
+function parseType(value: unknown): FeedType {
+  if (!isFeedType(value)) throw new AppError('invalid_type', 400, 'Parameter "type" must be "youtube" or "rss".');
+  return value;
+}
+
+function parseId(value: unknown, name = 'id'): number {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) throw new AppError('invalid_id', 400, `Invalid ${name}.`);
+  return id;
+}
+
+function optionalId(value: unknown, name: string): number | undefined {
+  return value === undefined || value === '' || value === null ? undefined : parseId(value, name);
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+}
+
+function parseBool(value: unknown): boolean {
+  return value === true || value === 'true' || value === '1';
+}
+
+export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
+  const { db, feedService } = options;
+  const app = Fastify({ logger: options.logger ?? false });
+
+  app.setErrorHandler((err, request, reply) => {
+    if (err instanceof AppError) {
+      return reply.status(err.status).send({ error: err.code, message: err.message });
+    }
+    const status = (err as { statusCode?: number }).statusCode ?? 500;
+    if (status >= 500) request.log.error(err);
+    return reply.status(status).send({ error: status >= 500 ? 'internal' : 'bad_request', message: (err as Error).message });
+  });
+
+  // ---------- API ----------
+
+  app.get('/api/health', async () => ({
+    status: 'ok',
+    version: VERSION,
+    pollIntervalMinutes: options.pollIntervalMinutes ?? null,
+    ...feedService.getSyncState(),
+  }));
+
+  app.get('/api/feeds', async (request) => {
+    const q = request.query as Record<string, unknown>;
+    return { feeds: repo.listFeeds(db, parseType(q.type), parseBool(q.hideShorts)) };
+  });
+
+  app.post('/api/feeds', async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const type = parseType(body.type);
+    if (typeof body.url !== 'string' || !body.url.trim()) {
+      throw new AppError('invalid_url', 400, 'Please provide a URL.');
+    }
+    const category = typeof body.category === 'string' ? body.category : null;
+    const result = await feedService.addFeed(type, body.url, category);
+    return reply.status(201).send(result);
+  });
+
+  app.patch('/api/feeds/:id', async (request) => {
+    const id = parseId((request.params as Record<string, unknown>).id);
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const category = typeof body.category === 'string' ? body.category : null;
+    const feed = repo.updateFeedCategory(db, id, category);
+    if (!feed) throw new AppError('feed_not_found', 404, 'Feed not found.');
+    return { feed };
+  });
+
+  app.delete('/api/feeds/:id', async (request, reply) => {
+    const id = parseId((request.params as Record<string, unknown>).id);
+    if (!repo.deleteFeed(db, id)) throw new AppError('feed_not_found', 404, 'Feed not found.');
+    return reply.status(204).send();
+  });
+
+  app.post('/api/feeds/sync', async (request) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const feedId = optionalId(body.feedId, 'feedId');
+    if (feedId !== undefined) return feedService.syncFeed(feedId);
+    return feedService.syncAll(body.type === undefined ? undefined : parseType(body.type));
+  });
+
+  app.get('/api/items', async (request) => {
+    const q = request.query as Record<string, unknown>;
+    const filter: repo.ItemFilter = {
+      type: parseType(q.type),
+      feedId: optionalId(q.feedId, 'feedId'),
+      category: optionalString(q.category),
+      hideShorts: parseBool(q.hideShorts),
+    };
+    const completedLimit = Math.min(Math.max(Number(q.completedLimit) || 100, 1), 5000);
+    const completed = repo.listCompleted(db, filter, completedLimit);
+    return {
+      uncompleted: repo.listUncompleted(db, filter),
+      completed: completed.items,
+      completedTotal: completed.total,
+      // Stats always cover the whole page type (all feeds), independent of the channel filter.
+      stats: repo.getStats(db, { type: filter.type, hideShorts: filter.hideShorts }),
+    };
+  });
+
+  app.patch('/api/items/:id', async (request) => {
+    const id = parseId((request.params as Record<string, unknown>).id);
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    if (typeof body.completed !== 'boolean') {
+      throw new AppError('bad_request', 400, 'Body must contain "completed": true|false.');
+    }
+    const item = repo.setItemCompleted(db, id, body.completed);
+    if (!item) throw new AppError('item_not_found', 404, 'Item not found.');
+    return { item };
+  });
+
+  app.post('/api/items/complete-all', async (request) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const updated = repo.completeAll(db, {
+      type: parseType(body.type),
+      feedId: optionalId(body.feedId, 'feedId'),
+      category: optionalString(body.category),
+      hideShorts: parseBool(body.hideShorts),
+    });
+    return { updated };
+  });
+
+  app.all('/api/*', async () => {
+    throw new AppError('not_found', 404, 'Unknown API endpoint.');
+  });
+
+  // ---------- Frontend (single-page app) ----------
+
+  if (options.staticDir && existsSync(join(options.staticDir, 'index.html'))) {
+    await app.register(fastifyStatic, { root: options.staticDir, wildcard: false });
+    app.setNotFoundHandler((request, reply) => {
+      if (request.method !== 'GET' || request.url.startsWith('/api/')) {
+        return reply.status(404).send({ error: 'not_found', message: 'Not found.' });
+      }
+      return reply.type('text/html').sendFile('index.html');
+    });
+  } else {
+    app.get('/', async () => ({
+      name: 'TallyDeck API',
+      message: 'Frontend not built. Run "npm run build" or use "npm run dev" (Vite on :5173).',
+    }));
+  }
+
+  return app;
+}

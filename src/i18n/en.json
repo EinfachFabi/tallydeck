@@ -1,0 +1,123 @@
+{
+  "app": {
+    "name": "TallyDeck",
+    "tagline": "Your feeds, tallied."
+  },
+  "nav": {
+    "youtube": "YouTube",
+    "rss": "News",
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar",
+    "syncAll": "Sync all feeds",
+    "syncing": "Syncing…",
+    "lastSync": "Last sync {time}",
+    "neverSynced": "Not synced yet",
+    "syncDone": "{count} new"
+  },
+  "topbar": {
+    "language": "Language"
+  },
+  "pages": {
+    "youtube": {
+      "title": "YouTube Dashboard",
+      "subtitle": "New uploads from your subscribed channels"
+    },
+    "rss": {
+      "title": "News Feeds",
+      "subtitle": "Latest articles from your RSS & Atom feeds"
+    }
+  },
+  "youtube": {
+    "statTotal": "Total watched",
+    "statWeek": "Watched this week",
+    "statAvg": "Avg. per week",
+    "statPending": "Unwatched",
+    "statFeeds": "Channels",
+    "statChart": "Watched per week",
+    "addTitle": "Add YouTube Channel",
+    "addHint": "Paste a YouTube channel link (@handle, /channel/UC…, video link, or RSS URL) and press Enter.",
+    "addPlaceholder": "https://www.youtube.com/@Fireship",
+    "addButton": "Add channel",
+    "added": "Added \"{title}\" with {count} videos",
+    "feedsLabel": "Channels",
+    "noFeeds": "No channels yet – click \"Add channel\" on the right to get started.",
+    "leftTitle": "New videos",
+    "rightTitle": "Watched",
+    "markDone": "Mark as watched",
+    "markAllDone": "Mark all as watched",
+    "confirmMarkAll": "Mark all {count} videos in this list as watched?",
+    "emptyLeft": "All caught up – no new videos.",
+    "emptyRight": "No videos watched in the last 7 days. Tick a video on the left to move it here.",
+    "completedAt": "Watched",
+    "confirmDelete": "Remove channel \"{title}\" and all its videos?"
+  },
+  "rss": {
+    "statTotal": "Total read",
+    "statWeek": "Read this week",
+    "statAvg": "Avg. per week",
+    "statPending": "Unread",
+    "statFeeds": "Feeds",
+    "statChart": "Read per week",
+    "addTitle": "Add News Feed",
+    "addHint": "Paste an RSS/Atom feed URL or website address and press Enter.",
+    "addPlaceholder": "https://hnrss.org/frontpage",
+    "addButton": "Add feed",
+    "added": "Added \"{title}\" with {count} articles",
+    "feedsLabel": "Feeds",
+    "noFeeds": "No feeds yet – click \"Add feed\" on the right to get started.",
+    "leftTitle": "Unread news",
+    "rightTitle": "Read",
+    "markDone": "Mark as read",
+    "markAllDone": "Mark all as read",
+    "confirmMarkAll": "Mark all {count} articles in this list as read?",
+    "emptyLeft": "All caught up – no unread news.",
+    "emptyRight": "No articles read in the last 7 days. Tick an article on the left to move it here.",
+    "completedAt": "Read",
+    "confirmDelete": "Remove feed \"{title}\" and all its articles?"
+  },
+  "common": {
+    "all": "All",
+    "topics": "Topics",
+    "topicLabel": "Topic (optional)",
+    "topicPlaceholder": "e.g. Tech, Gaming, Economy, Homelab",
+    "presetTopics": "Tech,Gaming,Economy,Homelab,Science,News",
+    "uncategorized": "Uncategorized",
+    "noTopic": "No topic",
+    "changeTopic": "Assign topic",
+    "changeTopicFor": "Topic for \"{title}\"",
+    "save": "Save",
+    "last7Days": "Last 7 days",
+    "hideShorts": "Hide Shorts",
+    "short": "Short",
+    "search": "Search titles or channels…",
+    "published": "Published",
+    "item": "Title",
+    "open": "Open in new tab",
+    "undo": "Move back to unread",
+    "remove": "Remove",
+    "cancel": "Cancel",
+    "showMoreFeeds": "Show all subscribed feeds",
+    "showLessFeeds": "Collapse subscribed feeds",
+    "loadMore": "Load more",
+    "showing": "{shown} of {total}",
+    "loading": "Loading…",
+    "vsLastWeek": "{diff} vs. last week",
+    "thisWeek": "This week",
+    "weeksAgo": "{count} wk ago",
+    "lastError": "Last sync failed: {error}",
+    "retry": "Retry",
+    "noResults": "No items match your search."
+  },
+  "errors": {
+    "invalid_url": "That doesn't look like a valid link.",
+    "invalid_type": "Invalid feed type.",
+    "feed_exists": "This one has already been added.",
+    "feed_not_found": "Feed not found.",
+    "item_not_found": "Item not found.",
+    "youtube_channel_not_found": "Couldn't find a YouTube channel for this link. Try the channel page URL (e.g. youtube.com/@name).",
+    "not_a_feed": "No RSS or Atom feed found at this URL.",
+    "fetch_failed": "The URL could not be loaded. Please check the link and try again.",
+    "network": "Cannot reach the TallyDeck server.",
+    "unknown": "Something went wrong."
+  }
+}

@@ -1,0 +1,19 @@
+services:
+  tallydeck:
+    build: .
+    image: tallydeck:latest
+    container_name: tallydeck
+    ports:
+      - "5555:5555"
+    volumes:
+      # Named volume: works out of the box with the non-root container user.
+      # For a host folder use e.g. "./data:/app/data" (folder must be writable by UID 1000).
+      - tallydeck-data:/app/data
+    environment:
+      - PORT=5555
+      - DB_PATH=/app/data/tallydeck.db
+      - POLL_INTERVAL_MINUTES=15
+    restart: unless-stopped
+
+volumes:
+  tallydeck-data:

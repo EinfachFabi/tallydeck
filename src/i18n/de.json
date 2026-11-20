@@ -1,0 +1,123 @@
+{
+  "app": {
+    "name": "TallyDeck",
+    "tagline": "Deine Feeds, abgehakt."
+  },
+  "nav": {
+    "youtube": "YouTube",
+    "rss": "News",
+    "collapse": "Seitenleiste einklappen",
+    "expand": "Seitenleiste ausklappen",
+    "syncAll": "Alle Feeds aktualisieren",
+    "syncing": "Aktualisiere…",
+    "lastSync": "Zuletzt aktualisiert {time}",
+    "neverSynced": "Noch nicht aktualisiert",
+    "syncDone": "{count} neu"
+  },
+  "topbar": {
+    "language": "Sprache"
+  },
+  "pages": {
+    "youtube": {
+      "title": "YouTube-Dashboard",
+      "subtitle": "Neue Uploads deiner abonnierten Kanäle"
+    },
+    "rss": {
+      "title": "News-Feeds",
+      "subtitle": "Neueste Artikel aus deinen RSS- & Atom-Feeds"
+    }
+  },
+  "youtube": {
+    "statTotal": "Insgesamt gesehen",
+    "statWeek": "Diese Woche gesehen",
+    "statAvg": "Ø pro Woche",
+    "statPending": "Ungesehen",
+    "statFeeds": "Kanäle",
+    "statChart": "Gesehen pro Woche",
+    "addTitle": "YouTube-Kanal hinzufügen",
+    "addHint": "Füge einen YouTube-Kanal-Link (@handle, /channel/UC…, Video-Link oder RSS-URL) ein und drücke Enter.",
+    "addPlaceholder": "https://www.youtube.com/@Fireship",
+    "addButton": "Kanal hinzufügen",
+    "added": "\"{title}\" mit {count} Videos hinzugefügt",
+    "feedsLabel": "Kanäle",
+    "noFeeds": "Noch keine Kanäle – klicke rechts auf \"Kanal hinzufügen\", um loszulegen.",
+    "leftTitle": "Neue Videos",
+    "rightTitle": "Gesehen",
+    "markDone": "Als gesehen markieren",
+    "markAllDone": "Alle als gesehen markieren",
+    "confirmMarkAll": "Alle {count} Videos in dieser Liste als gesehen markieren?",
+    "emptyLeft": "Alles erledigt – keine neuen Videos.",
+    "emptyRight": "In den letzten 7 Tagen nichts gesehen. Hake links ein Video ab, um es hierher zu verschieben.",
+    "completedAt": "Gesehen",
+    "confirmDelete": "Kanal \"{title}\" inklusive aller Videos entfernen?"
+  },
+  "rss": {
+    "statTotal": "Insgesamt gelesen",
+    "statWeek": "Diese Woche gelesen",
+    "statAvg": "Ø pro Woche",
+    "statPending": "Ungelesen",
+    "statFeeds": "Feeds",
+    "statChart": "Gelesen pro Woche",
+    "addTitle": "News-Feed hinzufügen",
+    "addHint": "Füge eine RSS-/Atom-Feed-URL oder Website-Adresse ein und drücke Enter.",
+    "addPlaceholder": "https://hnrss.org/frontpage",
+    "addButton": "Feed hinzufügen",
+    "added": "\"{title}\" mit {count} Artikeln hinzugefügt",
+    "feedsLabel": "Feeds",
+    "noFeeds": "Noch keine Feeds – klicke rechts auf \"Feed hinzufügen\", um loszulegen.",
+    "leftTitle": "Ungelesene News",
+    "rightTitle": "Gelesen",
+    "markDone": "Als gelesen markieren",
+    "markAllDone": "Alle als gelesen markieren",
+    "confirmMarkAll": "Alle {count} Artikel in dieser Liste als gelesen markieren?",
+    "emptyLeft": "Alles erledigt – keine ungelesenen News.",
+    "emptyRight": "In den letzten 7 Tagen nichts gelesen. Hake links einen Artikel ab, um ihn hierher zu verschieben.",
+    "completedAt": "Gelesen",
+    "confirmDelete": "Feed \"{title}\" inklusive aller Artikel entfernen?"
+  },
+  "common": {
+    "all": "Alle",
+    "topics": "Themen",
+    "topicLabel": "Thema (optional)",
+    "topicPlaceholder": "z. B. Tech, Gaming, Wirtschaft, Homelab",
+    "presetTopics": "Tech,Gaming,Wirtschaft,Homelab,Wissenschaft,News",
+    "uncategorized": "Ohne Thema",
+    "noTopic": "Kein Thema",
+    "changeTopic": "Thema zuweisen",
+    "changeTopicFor": "Thema für \"{title}\"",
+    "save": "Speichern",
+    "last7Days": "Letzte 7 Tage",
+    "hideShorts": "Shorts ausblenden",
+    "short": "Short",
+    "search": "Titel oder Kanäle durchsuchen…",
+    "published": "Veröffentlicht",
+    "item": "Titel",
+    "open": "In neuem Tab öffnen",
+    "undo": "Zurück zu ungelesen",
+    "remove": "Entfernen",
+    "cancel": "Abbrechen",
+    "showMoreFeeds": "Alle abonnierten Feeds einblenden",
+    "showLessFeeds": "Abonnierte Feeds einklappen",
+    "loadMore": "Mehr laden",
+    "showing": "{shown} von {total}",
+    "loading": "Lädt…",
+    "vsLastWeek": "{diff} ggü. letzter Woche",
+    "thisWeek": "Diese Woche",
+    "weeksAgo": "vor {count} Wo.",
+    "lastError": "Letzte Aktualisierung fehlgeschlagen: {error}",
+    "retry": "Erneut versuchen",
+    "noResults": "Keine Einträge passen zu deiner Suche."
+  },
+  "errors": {
+    "invalid_url": "Das sieht nicht nach einem gültigen Link aus.",
+    "invalid_type": "Ungültiger Feed-Typ.",
+    "feed_exists": "Dieser Eintrag wurde bereits hinzugefügt.",
+    "feed_not_found": "Feed nicht gefunden.",
+    "item_not_found": "Eintrag nicht gefunden.",
+    "youtube_channel_not_found": "Zu diesem Link wurde kein YouTube-Kanal gefunden. Versuche die Kanal-URL (z. B. youtube.com/@name).",
+    "not_a_feed": "Unter dieser URL wurde kein RSS- oder Atom-Feed gefunden.",
+    "fetch_failed": "Die URL konnte nicht geladen werden. Bitte prüfe den Link und versuche es erneut.",
+    "network": "Der TallyDeck-Server ist nicht erreichbar.",
+    "unknown": "Etwas ist schiefgelaufen."
+  }
+}

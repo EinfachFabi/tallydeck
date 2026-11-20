@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import type { Feed, FeedType, Item, ItemsResponse } from '../types';
 import { api, UNCATEGORIZED_TOKEN } from '../api';
 import { useI18n } from '../i18n/I18nContext';
+import { useSettings } from '../context/SettingsContext';
 import { errorText } from '../utils/format';
 import { useLocalStorage } from '../utils/useLocalStorage';
 import { StatsBar } from '../components/StatsBar';
@@ -20,6 +21,7 @@ interface DashboardPageProps {
 
 export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
   const { t } = useI18n();
+  const { inboxLimit, completedDays } = useSettings();
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [data, setData] = useState<ItemsResponse | null>(null);
   const [selectedFeedId, setSelectedFeedId] = useState<number | null>(null);
@@ -27,6 +29,7 @@ export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
   const [hideShorts, setHideShorts] = useLocalStorage(`tallydeck.${type}.hideShorts`, type === 'youtube');
   const [completedLimit, setCompletedLimit] = useState(COMPLETED_PAGE);
   const [search, setSearch] = useState('');
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
 
@@ -42,7 +45,9 @@ export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
           feedId: selectedFeedId,
           category: selectedCategory,
           hideShorts: effectiveHideShorts,
+          inboxLimit,
           completedLimit,
+          completedDays,
         }),
       ]);
       if (id !== requestId.current) return; // a newer request is in flight
@@ -52,7 +57,7 @@ export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
     } catch (err) {
       if (id === requestId.current) setError(errorText(err, t));
     }
-  }, [type, effectiveHideShorts, selectedFeedId, selectedCategory, completedLimit, t]);
+  }, [type, effectiveHideShorts, selectedFeedId, selectedCategory, inboxLimit, completedLimit, completedDays, t]);
 
   useEffect(() => {
     void load();
@@ -158,17 +163,28 @@ export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
 
   const deleteFeed = useCallback(
     async (feed: Feed) => {
-      if (!window.confirm(t(`${type}.confirmDelete`, { title: feed.title }))) return;
       try {
         await api.deleteFeed(feed.id);
         if (selectedFeedId === feed.id) setSelectedFeedId(null);
       } catch (err) {
         setError(errorText(err, t));
       }
-      void load();
+      await load();
     },
-    [type, selectedFeedId, load, t],
+    [selectedFeedId, load, t],
   );
+
+  const syncFeeds = useCallback(async () => {
+    setSyncing(true);
+    try {
+      await api.sync({ type });
+    } catch (err) {
+      setError(errorText(err, t));
+    } finally {
+      setSyncing(false);
+      await load();
+    }
+  }, [type, load, t]);
 
   // Client-side title/channel/topic search on top of the server-side filters.
   const query = search.trim().toLowerCase();
@@ -219,8 +235,11 @@ export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
         uncompleted={filtered.uncompleted}
         completed={filtered.completed}
         completedTotal={query ? filtered.completed.length : (data?.completedTotal ?? 0)}
+        completedDays={completedDays}
         onToggle={toggle}
         onCompleteAll={completeAll}
+        onSync={() => void syncFeeds()}
+        syncing={syncing}
         onLoadMore={() => setCompletedLimit((l) => l + COMPLETED_PAGE)}
         searching={Boolean(query)}
       />

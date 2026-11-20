@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
+import { SettingsModal } from './components/SettingsModal';
 import { DashboardPage } from './pages/DashboardPage';
 import { api } from './api';
 import { useLocalStorage } from './utils/useLocalStorage';
@@ -10,10 +11,8 @@ const HEALTH_POLL_MS = 30_000;
 
 export default function App() {
   const [collapsed, setCollapsed] = useLocalStorage('tallydeck.sidebarCollapsed', false);
-  const [syncing, setSyncing] = useState(false);
-  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
-  const [lastSyncAdded, setLastSyncAdded] = useState<number | null>(null);
-  /** Incremented whenever data may have changed (manual or background sync) -> pages reload. */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Incremented whenever data may have changed (manual, OPML import, or background sync) -> pages reload. */
   const [refreshKey, setRefreshKey] = useState(0);
   const knownSyncAt = useRef<number | null>(null);
 
@@ -21,7 +20,6 @@ export default function App() {
   const checkHealth = useCallback(async () => {
     try {
       const health = await api.health();
-      setLastSyncAt(health.lastSyncAt);
       if (health.lastSyncAt && knownSyncAt.current !== null && health.lastSyncAt !== knownSyncAt.current) {
         setRefreshKey((k) => k + 1);
       }
@@ -37,30 +35,12 @@ export default function App() {
     return () => clearInterval(id);
   }, [checkHealth]);
 
-  const syncAll = useCallback(async () => {
-    setSyncing(true);
-    try {
-      const result = await api.sync();
-      knownSyncAt.current = result.finishedAt;
-      setLastSyncAt(result.finishedAt);
-      setLastSyncAdded(result.added);
-    } catch {
-      /* errors are shown per feed in the channel strip */
-    } finally {
-      setSyncing(false);
-      setRefreshKey((k) => k + 1);
-    }
-  }, []);
-
   return (
     <div className="flex h-full overflow-hidden">
       <Sidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
-        syncing={syncing}
-        lastSyncAt={lastSyncAt}
-        lastSyncAdded={lastSyncAdded}
-        onSync={syncAll}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar />
@@ -73,6 +53,11 @@ export default function App() {
           </Routes>
         </main>
       </div>
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onImported={() => setRefreshKey((k) => k + 1)}
+      />
     </div>
   );
 }

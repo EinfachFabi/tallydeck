@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Check, CheckCheck, ExternalLink, Inbox, PartyPopper, Rss, Undo2 } from 'lucide-react';
+import { Check, CheckCheck, ExternalLink, Inbox, PartyPopper, RefreshCw, Rss, Undo2 } from 'lucide-react';
 import type { FeedType, Item } from '../types';
 import { useI18n } from '../i18n/I18nContext';
 import { cn, formatDateTime, formatRelative } from '../utils/format';
@@ -11,8 +11,11 @@ interface SplitFeedTablesProps {
   uncompleted: Item[];
   completed: Item[];
   completedTotal: number;
+  completedDays: number;
   onToggle: (item: Item, completed: boolean) => void;
   onCompleteAll: () => void;
+  onSync: () => void;
+  syncing: boolean;
   onLoadMore: () => void;
   searching: boolean;
 }
@@ -162,8 +165,27 @@ const TH =
   'sticky top-0 z-10 bg-surface/95 px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-muted backdrop-blur';
 
 export function SplitFeedTables(props: SplitFeedTablesProps) {
-  const { type, uncompleted, completed, completedTotal, onToggle, onCompleteAll, onLoadMore, searching } = props;
+  const {
+    type,
+    uncompleted,
+    completed,
+    completedTotal,
+    completedDays,
+    onToggle,
+    onCompleteAll,
+    onSync,
+    syncing,
+    onLoadMore,
+    searching,
+  } = props;
   const { t, locale } = useI18n();
+
+  const daysBadgeLabel =
+    completedDays === 1
+      ? t('common.last1Day')
+      : completedDays === 7
+        ? t('common.last7Days')
+        : t('common.lastNDays', { days: completedDays });
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-2">
@@ -173,16 +195,29 @@ export function SplitFeedTables(props: SplitFeedTablesProps) {
         count={String(uncompleted.length)}
         icon={<Inbox className="h-5 w-5 text-accent" />}
         action={
-          uncompleted.length > 0 && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onCompleteAll}
-              className="flex items-center gap-1.5 rounded-lg border border-line bg-elevated/60 px-3 py-1.5 text-xs font-medium text-fg transition-colors hover:border-success hover:bg-success/15 hover:text-success"
+              onClick={onSync}
+              disabled={syncing}
+              title={t(`${type}.syncButton`)}
+              aria-label={t(`${type}.syncButton`)}
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-elevated/60 px-3 py-1.5 text-xs font-medium text-fg transition-colors hover:border-accent hover:bg-accent/15 hover:text-accent disabled:cursor-wait"
             >
-              <CheckCheck className="h-4 w-4" />
-              {t(`${type}.markAllDone`)}
+              <RefreshCw className={cn('h-3.5 w-3.5', syncing && 'animate-spin text-accent')} />
+              <span>{syncing ? t('nav.syncing') : t('nav.sync')}</span>
             </button>
-          )
+            {uncompleted.length > 0 && (
+              <button
+                type="button"
+                onClick={onCompleteAll}
+                className="flex items-center gap-1.5 rounded-lg border border-line bg-elevated/60 px-3 py-1.5 text-xs font-medium text-fg transition-colors hover:border-success hover:bg-success/15 hover:text-success"
+              >
+                <CheckCheck className="h-4 w-4" />
+                <span>{t(`${type}.markAllDone`)}</span>
+              </button>
+            )}
+          </div>
         }
       >
         {uncompleted.length === 0 ? (
@@ -241,7 +276,7 @@ export function SplitFeedTables(props: SplitFeedTablesProps) {
         )}
       </Panel>
 
-      {/* RIGHT: watched / read (receded with grayscale thumbnails & strikethrough titles, last 7 days) */}
+      {/* RIGHT: watched / read (receded with grayscale thumbnails & strikethrough titles, configurable retention days) */}
       <Panel
         title={t(`${type}.rightTitle`)}
         count={
@@ -253,14 +288,14 @@ export function SplitFeedTables(props: SplitFeedTablesProps) {
         mutedPanel
         action={
           <span className="rounded-md border border-line/70 bg-elevated/50 px-2 py-0.5 text-[11px] font-medium text-muted">
-            {t('common.last7Days')}
+            {daysBadgeLabel}
           </span>
         }
       >
         {completed.length === 0 ? (
           <EmptyState
             icon={<CheckCheck className="h-9 w-9 text-muted/50" />}
-            text={searching ? t('common.noResults') : t(`${type}.emptyRight`)}
+            text={searching ? t('common.noResults') : t(`${type}.emptyRight`, { days: completedDays })}
           />
         ) : (
           <>

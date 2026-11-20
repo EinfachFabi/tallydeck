@@ -2,8 +2,16 @@ import type { DatabaseSync, FeedType } from './db.ts';
 import { defaultFetchText, type FetchText } from './http.ts';
 import { parseFeedXml } from './feedParser.ts';
 import { resolveRssFeed, resolveYouTubeFeed } from './resolvers.ts';
+import { parseOpml } from './opml.ts';
 import { AppError, errorMessage } from './errors.ts';
 import * as repo from './repository.ts';
+
+export interface OpmlImportResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+  errors: { url: string; error: string }[];
+}
 
 export interface SyncResult {
   added: number;
@@ -156,6 +164,78 @@ export function createFeedService(db: DatabaseSync, fetchText: FetchText = defau
     return runSync([feed]);
   }
 
+  async function importOpml(type: FeedType, opmlXml: string): Promise<OpmlImportResult> {
+    const entries = parseOpml(opmlXml);
+    if (entries.length === 0) {
+      throw new AppError('invalid_opml', 400, 'No feeds found in the OPML file.');
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    let failed = 0;
+    const errors: { url: string; error: string }[] = [];
+
+    for (const entry of entries) {
+      const candidateUrl = entry.url.trim();
+      if (!candidateUrl) continue;
+
+      if (repo.findFeedByUrl(db, type, candidateUrl)) {
+        skipped += 1;
+        continue;
+      }
+
+      try {
+        await addFeed(type, candidateUrl, entry.category);
+        imported += 1;
+      } catch (err) {
+        if (err instanceof AppError && err.code === 'feed_exists') {
+          skipped += 1;
+          continue;
+        }
+        // Fallback: if the feed failed to fetch right now, but we have a valid feed URL in the OPML,
+        // insert the feed directly so the user doesn't lose the subscription during import.
+        const isYouTubeXml =
+          type === 'youtube' && /^https?:\/\/(www\.)?youtube\.com\/feeds\/videos\.xml\?(channel_id|playlist_id)=/i.test(candidateUrl);
+        const isHttpUrl = /^https?:\/\//i.test(candidateUrl);
+        if ((type === 'rss' && isHttpUrl) || isYouTubeXml) {
+          if (repo.findFeedByUrl(db, type, candidateUrl)) {
+            skipped += 1;
+            continue;
+          }
+          const chMatch = candidateUrl.match(/[?&]channel_id=(UC[\w-]{22})/);
+          const fallbackTitle =
+            entry.title ||
+            (() => {
+              try {
+                return new URL(entry.siteUrl ?? candidateUrl).hostname.replace(/^www\./, '');
+              } catch {
+                return candidateUrl;
+              }
+            })();
+          const feedId = repo.insertFeed(db, {
+            type,
+            title: fallbackTitle,
+            feedUrl: candidateUrl,
+            sourceUrl: entry.siteUrl ?? candidateUrl,
+            siteUrl:
+              entry.siteUrl ??
+              (chMatch ? `https://www.youtube.com/channel/${chMatch[1]}` : null),
+            channelId: chMatch ? chMatch[1] : null,
+            iconUrl: null,
+            category: entry.category,
+          });
+          repo.updateFeedFetchState(db, feedId, errorMessage(err));
+          imported += 1;
+        } else {
+          failed += 1;
+          errors.push({ url: candidateUrl, error: errorMessage(err) });
+        }
+      }
+    }
+
+    return { imported, skipped, failed, errors };
+  }
+
   function startScheduler(intervalMinutes: number): () => void {
     const tick = () => {
       syncAll().catch((err) => logger?.warn(`Scheduled sync failed: ${errorMessage(err)}`));
@@ -171,6 +251,7 @@ export function createFeedService(db: DatabaseSync, fetchText: FetchText = defau
 
   return {
     addFeed,
+    importOpml,
     syncAll,
     syncFeed,
     startScheduler,

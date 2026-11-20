@@ -290,7 +290,7 @@ const ITEM_SELECT = `
     FROM items i
     JOIN feeds f ON f.id = i.feed_id`;
 
-export function listUncompleted(db: DatabaseSync, filter: ItemFilter, limit = 500): ItemDto[] {
+export function listUncompleted(db: DatabaseSync, filter: ItemFilter, limit = 100): ItemDto[] {
   const where = filterClause(filter);
   const rows = db
     .prepare(
@@ -304,17 +304,19 @@ export function listUncompleted(db: DatabaseSync, filter: ItemFilter, limit = 50
 }
 
 /**
- * Lists completed (watched / read) items from the last 7 days only.
+ * Lists completed (watched / read) items from the last N days (default: 7 days, max: 30 days).
  * Older completed items remain in the database for deduplication and lifetime statistics.
  */
 export function listCompleted(
   db: DatabaseSync,
   filter: ItemFilter,
   limit = 100,
+  completedDays = 7,
   now = Date.now(),
 ): { items: ItemDto[]; total: number } {
   const where = filterClause(filter);
-  const cutoff = now - WEEK_MS;
+  const days = Math.min(Math.max(Math.round(completedDays) || 7, 1), 30);
+  const cutoff = now - days * DAY_MS;
   const rows = db
     .prepare(
       `${ITEM_SELECT}

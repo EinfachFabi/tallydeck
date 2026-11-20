@@ -7,14 +7,18 @@
 ## Features
 
 - **Two-Table Inbox-Zero Workflow:**
-  - **Left Table (New / Unread):** New YouTube uploads and unread news articles in full color. Tick an entry off and it moves immediately to the right table.
-  - **Right Table (Watched / Read – Last 7 Days):** Completed items from the last 7 days with grayed-out thumbnails, strikethrough titles, completion timestamps, and a one-click **Undo** button. Older completed items remain in SQLite so lifetime statistics and duplicate protection stay intact.
+  - **Left Table (New / Unread):** New YouTube uploads and unread news articles in full color (configurable inbox limit, default `100`), with quick per-page **Sync** and **Mark all as watched/read** buttons. Tick an entry off and it moves immediately to the right table.
+  - **Right Table (Watched / Read):** Completed items from the last `7` days (configurable from `1` to `30` days in Settings) with grayed-out thumbnails, strikethrough titles, completion timestamps, and a one-click **Undo** button. Older completed items remain in SQLite so lifetime statistics and duplicate protection stay intact.
 - **YouTube Without API Key:** Paste any YouTube channel link (`https://www.youtube.com/@name`, `/channel/UC…`, a video link, or RSS URL) – TallyDeck resolves it automatically to the official YouTube RSS feed. Includes a **Hide Shorts** toggle.
 - **RSS & Atom Auto-Discovery:** Paste a direct feed URL **or a website URL** – TallyDeck automatically discovers the RSS/Atom feed.
 - **Topics / Tag Grouping with Distinct Colors:** Group channels and feeds by topic (e.g. *Tech*, *Gaming*, *Economy*, *Homelab*, *Science*, *News* or any custom topic) with color-coded badges and topic filters.
+- **Settings Menu (Themes, Dark/Light Mode, Limits & OPML Backup):** Accessible from the bottom of the left sidebar:
+  - **Dark Mode / Light Mode** switch (Dark Mode by default) and **5 color themes** (**Monokai** default, **Dracula**, **Nord**, **Catppuccin**, **Gruvbox**).
+  - Configurable **Inbox display limit** (default `100` items) and **Watched / Read history duration** (`7` days default, up to `30` days).
+  - **OPML 2.0 Import & Export / Backup** buttons separately for **YouTube channels** and **RSS feeds** (preserving topic folders).
 - **Automatic Background Sync:** Polls all subscribed channels and feeds in the background (default: every 15 minutes) and adds new items automatically without duplicating or resetting already watched/read items.
 - **Statistics & Weekly Trend:** Tracks total watched/read, this week (with comparison vs. last week), weekly average, unread count, and an 8-week bar chart.
-- **Collapsible Sidebar & Multilingual UI:** Collapsible icon sidebar and top-right language switcher (**English** default, **German** included).
+- **Collapsible Sidebar & Multilingual UI:** Collapsible icon sidebar, confirmation dialog before removing channels/feeds, and top-right language switcher (**English** default, **German** included).
 
 ---
 
@@ -126,6 +130,8 @@ src/               React + Vite + Tailwind CSS frontend (Monokai theme)
 | `PATCH`  | `/api/feeds/:id`                                  | `{ category }` – assign or change a feed's topic           |
 | `DELETE` | `/api/feeds/:id`                                  | Remove a channel/feed and all its items                    |
 | `POST`   | `/api/feeds/sync`                                 | `{ type?, feedId? }` – trigger immediate feed refresh      |
-| `GET`    | `/api/items?type=&feedId=&category=&hideShorts=`  | Uncompleted items, completed items (last 7 days), & stats  |
+| `GET`    | `/api/feeds/opml?type=youtube\|rss`               | Export subscribed channels or feeds as an OPML 2.0 file    |
+| `POST`   | `/api/feeds/opml`                                 | `{ type, opml }` – import channels or feeds from OPML XML  |
+| `GET`    | `/api/items?type=&feedId=&category=&hideShorts=&inboxLimit=&completedDays=` | Uncompleted items, completed items, & stats |
 | `PATCH`  | `/api/items/:id`                                  | `{ completed: boolean }` – mark item watched/read or undo  |
 | `POST`   | `/api/items/complete-all`                         | `{ type, feedId?, category?, hideShorts? }` – complete all |

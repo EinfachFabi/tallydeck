@@ -10,6 +10,7 @@ import {
   Rss,
   Search,
   Tag,
+  Trash2,
   X,
 } from 'lucide-react';
 import type { Feed, FeedType } from '../types';
@@ -28,7 +29,7 @@ interface ChannelStripProps {
   onSelectCategory: (category: string | null) => void;
   onAdd: (url: string, category: string | null) => Promise<string>;
   onUpdateCategory: (feed: Feed, category: string | null) => Promise<void>;
-  onDelete: (feed: Feed) => void;
+  onDelete: (feed: Feed) => Promise<void>;
   hideShorts: boolean;
   onHideShortsChange: (value: boolean) => void;
   search: string;
@@ -146,6 +147,10 @@ export function ChannelStrip(props: ChannelStripProps) {
   const [editCategoryInput, setEditCategoryInput] = useState('');
   const [savingCategory, setSavingCategory] = useState(false);
 
+  // Delete confirmation popup for a feed / channel
+  const [deletingFeed, setDeletingFeed] = useState<Feed | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   // Overflow detection for subscribed feeds row
   const [expanded, setExpanded] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
@@ -221,16 +226,17 @@ export function ChannelStrip(props: ChannelStripProps) {
   }, [modalOpen, selectedCategory]);
 
   useEffect(() => {
-    if (!modalOpen && !editingFeed) return;
+    if (!modalOpen && !editingFeed && !deletingFeed) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (modalOpen && !adding) setModalOpen(false);
         if (editingFeed && !savingCategory) setEditingFeed(null);
+        if (deletingFeed && !deleting) setDeletingFeed(null);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [modalOpen, adding, editingFeed, savingCategory]);
+  }, [modalOpen, adding, editingFeed, savingCategory, deletingFeed, deleting]);
 
   // Measure whether the single-row height overflows with more feeds
   useEffect(() => {
@@ -275,6 +281,17 @@ export function ChannelStrip(props: ChannelStripProps) {
       setEditingFeed(null);
     } finally {
       setSavingCategory(false);
+    }
+  }
+
+  async function confirmDeleteFeed() {
+    if (!deletingFeed || deleting) return;
+    setDeleting(true);
+    try {
+      await onDelete(deletingFeed);
+      setDeletingFeed(null);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -530,7 +547,7 @@ export function ChannelStrip(props: ChannelStripProps) {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onDelete(feed);
+                        setDeletingFeed(feed);
                       }}
                       className="-mr-1 hidden rounded-full p-1 text-muted hover:bg-danger/20 hover:text-danger group-hover:block"
                       aria-label={t('common.remove')}
@@ -699,6 +716,66 @@ export function ChannelStrip(props: ChannelStripProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Popup / Modal when removing a YouTube channel or RSS feed */}
+      {deletingFeed && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-xs"
+          onClick={() => !deleting && setDeletingFeed(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-feed-title"
+            className="w-full max-w-md animate-fade-in rounded-2xl border border-line bg-surface p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger/15 text-danger">
+                  <Trash2 className="h-5 w-5" />
+                </span>
+                <h3 id="delete-feed-title" className="text-base font-semibold">
+                  {t(`${type}.deleteTitle`)}
+                </h3>
+              </div>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setDeletingFeed(null)}
+                className="rounded-lg p-1.5 text-muted hover:bg-elevated hover:text-fg"
+                aria-label={t('common.cancel')}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="mt-3 text-sm text-muted">
+              {t(`${type}.confirmDelete`, { title: deletingFeed.title })}
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setDeletingFeed(null)}
+                className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-muted hover:bg-elevated hover:text-fg"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => void confirmDeleteFeed()}
+                className="flex items-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {deleting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                <span>{t('common.deleteConfirmButton')}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

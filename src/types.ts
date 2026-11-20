@@ -60,6 +60,13 @@ export interface SyncResult {
   finishedAt: number;
 }
 
+export interface OpmlImportResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+  errors: { url: string; error: string }[];
+}
+
 export interface Health {
   status: string;
   version: string;

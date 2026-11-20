@@ -6,6 +6,7 @@ import type { DatabaseSync } from './db.ts';
 import { isFeedType, type FeedType } from './db.ts';
 import type { FeedService } from './feedService.ts';
 import { AppError } from './errors.ts';
+import { buildOpml } from './opml.ts';
 import * as repo from './repository.ts';
 
 export interface AppOptions {
@@ -101,6 +102,28 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     return feedService.syncAll(body.type === undefined ? undefined : parseType(body.type));
   });
 
+  app.get('/api/feeds/opml', async (request, reply) => {
+    const q = request.query as Record<string, unknown>;
+    const type = parseType(q.type);
+    const feeds = repo.listFeeds(db, type);
+    const xml = buildOpml(type, feeds);
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `tallydeck-${type}-${date}.opml`;
+    return reply
+      .header('Content-Type', 'text/x-opml; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(xml);
+  });
+
+  app.post('/api/feeds/opml', async (request) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const type = parseType(body.type);
+    if (typeof body.opml !== 'string' || !body.opml.trim()) {
+      throw new AppError('invalid_opml', 400, 'Please provide a valid OPML file.');
+    }
+    return feedService.importOpml(type, body.opml);
+  });
+
   app.get('/api/items', async (request) => {
     const q = request.query as Record<string, unknown>;
     const filter: repo.ItemFilter = {
@@ -109,10 +132,12 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       category: optionalString(q.category),
       hideShorts: parseBool(q.hideShorts),
     };
+    const inboxLimit = Math.min(Math.max(Number(q.inboxLimit) || 100, 1), 5000);
     const completedLimit = Math.min(Math.max(Number(q.completedLimit) || 100, 1), 5000);
-    const completed = repo.listCompleted(db, filter, completedLimit);
+    const completedDays = Math.min(Math.max(Number(q.completedDays) || 7, 1), 30);
+    const completed = repo.listCompleted(db, filter, completedLimit, completedDays);
     return {
-      uncompleted: repo.listUncompleted(db, filter),
+      uncompleted: repo.listUncompleted(db, filter, inboxLimit),
       completed: completed.items,
       completedTotal: completed.total,
       // Stats always cover the whole page type (all feeds), independent of the channel filter.

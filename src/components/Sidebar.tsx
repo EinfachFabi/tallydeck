@@ -1,16 +1,13 @@
 import { NavLink } from 'react-router-dom';
-import { PanelLeftClose, PanelLeftOpen, RefreshCw } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
 import { NAV_ITEMS } from '../navigation';
 import { useI18n } from '../i18n/I18nContext';
-import { cn, formatRelative } from '../utils/format';
+import { cn } from '../utils/format';
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
-  syncing: boolean;
-  lastSyncAt: number | null;
-  lastSyncAdded: number | null;
-  onSync: () => void;
+  onOpenSettings: () => void;
 }
 
 /** Tooltip shown next to icons while the sidebar is collapsed. */
@@ -23,8 +20,8 @@ function Tooltip({ label, show }: { label: string; show: boolean }) {
   );
 }
 
-export function Sidebar({ collapsed, onToggle, syncing, lastSyncAt, lastSyncAdded, onSync }: SidebarProps) {
-  const { t, locale } = useI18n();
+export function Sidebar({ collapsed, onToggle, onOpenSettings }: SidebarProps) {
+  const { t } = useI18n();
 
   return (
     <aside
@@ -81,30 +78,21 @@ export function Sidebar({ collapsed, onToggle, syncing, lastSyncAt, lastSyncAdde
         })}
       </nav>
 
-      {/* Sync */}
+      {/* Settings button at the bottom of the left sidebar */}
       <div className="border-t border-line p-2.5">
         <button
           type="button"
-          onClick={onSync}
-          disabled={syncing}
-          aria-label={t('nav.syncAll')}
+          onClick={onOpenSettings}
+          aria-label={t('nav.settings')}
           className={cn(
-            'group relative flex w-full items-center gap-3 rounded-xl py-3 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg disabled:cursor-wait',
+            'group relative flex w-full items-center gap-3 rounded-xl py-3 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg',
             collapsed ? 'justify-center' : 'px-3.5',
           )}
         >
-          <RefreshCw className={cn('h-5.5 w-5.5 shrink-0', syncing && 'animate-spin text-accent')} />
-          {!collapsed && <span className="truncate">{syncing ? t('nav.syncing') : t('nav.syncAll')}</span>}
-          <Tooltip label={syncing ? t('nav.syncing') : t('nav.syncAll')} show={collapsed} />
+          <Settings className="h-5.5 w-5.5 shrink-0" />
+          {!collapsed && <span className="truncate">{t('nav.settings')}</span>}
+          <Tooltip label={t('nav.settings')} show={collapsed} />
         </button>
-        {!collapsed && (
-          <p className="truncate px-3.5 pb-1 text-[11px] text-muted/80" title={lastSyncAt ? new Date(lastSyncAt).toLocaleString(locale) : undefined}>
-            {lastSyncAt ? t('nav.lastSync', { time: formatRelative(lastSyncAt, locale) }) : t('nav.neverSynced')}
-            {lastSyncAdded !== null && lastSyncAdded > 0 && (
-              <span className="ml-1 text-success">· {t('nav.syncDone', { count: lastSyncAdded })}</span>
-            )}
-          </p>
-        )}
       </div>
     </aside>
   );

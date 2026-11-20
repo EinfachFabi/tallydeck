@@ -245,3 +245,69 @@ test('supports grouping and filtering feeds and items by topic/category', async 
   const uncatItems = await getItems('type=youtube&category=__uncategorized__');
   assert.equal(uncatItems.uncompleted.length, 3);
 });
+
+test('supports inboxLimit and configurable completedDays (up to 30 days) on /api/items', async () => {
+  await addYouTube();
+  const limited = await getItems('type=youtube&inboxLimit=2');
+  assert.equal(limited.uncompleted.length, 2, 'inboxLimit caps uncompleted items');
+
+  // Complete an item and backdate it to 15 days ago
+  const all = await getItems('type=youtube');
+  const target = all.uncompleted[0];
+  await app.inject({ method: 'PATCH', url: `/api/items/${target.id}`, payload: { completed: true } });
+  db.prepare('UPDATE items SET completed_at = ? WHERE id = ?').run(Date.now() - 15 * DAY_MS, target.id);
+
+  // With default 7 days it is hidden
+  const default7 = await getItems('type=youtube');
+  assert.equal(default7.completed.length, 0);
+
+  // With completedDays=20 it is shown
+  const custom20 = await getItems('type=youtube&completedDays=20');
+  assert.equal(custom20.completed.length, 1);
+  assert.equal(custom20.completed[0].id, target.id);
+});
+
+test('exports and imports OPML 2.0 files for YouTube and RSS feeds including categories', async () => {
+  await app.inject({
+    method: 'POST',
+    url: '/api/feeds',
+    payload: { type: 'youtube', url: '@fireship', category: 'Tech' },
+  });
+
+  const exportRes = await app.inject({ method: 'GET', url: '/api/feeds/opml?type=youtube' });
+  assert.equal(exportRes.statusCode, 200);
+  assert.match(exportRes.headers['content-type'] as string, /text\/x-opml/);
+  assert.match(exportRes.body, /<opml version="2\.0">/);
+  assert.match(exportRes.body, /Fireship/);
+  assert.match(exportRes.body, /Tech/);
+
+  // Import into a fresh database via OPML
+  const opmlXml = exportRes.body;
+  const feedsBefore = (await app.inject({ method: 'GET', url: '/api/feeds?type=youtube' })).json().feeds;
+  await app.inject({ method: 'DELETE', url: `/api/feeds/${feedsBefore[0].id}` });
+  assert.equal((await app.inject({ method: 'GET', url: '/api/feeds?type=youtube' })).json().feeds.length, 0);
+
+  const importRes = await app.inject({
+    method: 'POST',
+    url: '/api/feeds/opml',
+    payload: { type: 'youtube', opml: opmlXml },
+  });
+  assert.equal(importRes.statusCode, 200);
+  assert.equal(importRes.json().imported, 1);
+  assert.equal(importRes.json().skipped, 0);
+
+  // Re-importing the same OPML skips existing feeds
+  const secondImport = await app.inject({
+    method: 'POST',
+    url: '/api/feeds/opml',
+    payload: { type: 'youtube', opml: opmlXml },
+  });
+  assert.equal(secondImport.json().imported, 0);
+  assert.equal(secondImport.json().skipped, 1);
+
+  const feedsAfter = (await app.inject({ method: 'GET', url: '/api/feeds?type=youtube' })).json().feeds;
+  assert.equal(feedsAfter.length, 1);
+  assert.equal(feedsAfter[0].title, 'Fireship');
+  assert.equal(feedsAfter[0].category, 'Tech');
+});
+

@@ -1,4 +1,4 @@
-import type { Feed, FeedType, Health, Item, ItemsResponse, SyncResult } from './types';
+import type { Feed, FeedType, Health, Item, ItemsResponse, OpmlImportResult, SyncResult } from './types';
 
 export const UNCATEGORIZED_TOKEN = '__uncategorized__';
 
@@ -56,12 +56,19 @@ export const api = {
 
   sync: (opts: { type?: FeedType; feedId?: number } = {}) => request<SyncResult>('POST', '/api/feeds/sync', opts),
 
+  exportOpmlUrl: (type: FeedType) => `/api/feeds/opml?${qs({ type })}`,
+
+  importOpml: (type: FeedType, opml: string) =>
+    request<OpmlImportResult>('POST', '/api/feeds/opml', { type, opml }),
+
   getItems: (params: {
     type: FeedType;
     feedId?: number | null;
     category?: string | null;
     hideShorts: boolean;
+    inboxLimit?: number;
     completedLimit: number;
+    completedDays?: number;
   }) => request<ItemsResponse>('GET', `/api/items?${qs(params)}`),
 
   setCompleted: (id: number, completed: boolean) =>

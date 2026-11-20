@@ -62,19 +62,19 @@ const PALETTE: TopicColorTheme[] = [
   },
   // 6: Teal
   {
-    badge: 'border border-teal-400/40 bg-teal-400/15 text-teal-300',
-    pillActive: 'border-teal-400 bg-teal-400/20 text-teal-300',
-    pillIdle: 'border-line text-fg/90 hover:border-teal-400/60',
-    icon: 'text-teal-300',
-    count: 'bg-teal-400/25 text-teal-300',
+    badge: 'border border-teal-500/40 bg-teal-500/15 text-teal-600 dark:text-teal-300',
+    pillActive: 'border-teal-500 bg-teal-500/20 text-teal-600 dark:text-teal-300',
+    pillIdle: 'border-line text-fg/90 hover:border-teal-500/60',
+    icon: 'text-teal-600 dark:text-teal-300',
+    count: 'bg-teal-500/25 text-teal-600 dark:text-teal-300',
   },
   // 7: Sky Blue
   {
-    badge: 'border border-sky-400/40 bg-sky-400/15 text-sky-300',
-    pillActive: 'border-sky-400 bg-sky-400/20 text-sky-300',
-    pillIdle: 'border-line text-fg/90 hover:border-sky-400/60',
-    icon: 'text-sky-300',
-    count: 'bg-sky-400/25 text-sky-300',
+    badge: 'border border-sky-500/40 bg-sky-500/15 text-sky-600 dark:text-sky-300',
+    pillActive: 'border-sky-500 bg-sky-500/20 text-sky-600 dark:text-sky-300',
+    pillIdle: 'border-line text-fg/90 hover:border-sky-500/60',
+    icon: 'text-sky-600 dark:text-sky-300',
+    count: 'bg-sky-500/25 text-sky-600 dark:text-sky-300',
   },
 ];
 

@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS items (
   UNIQUE (feed_id, external_id)
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_items_feed      ON items (feed_id);
 CREATE INDEX IF NOT EXISTS idx_items_completed ON items (is_completed, completed_at);
 CREATE INDEX IF NOT EXISTS idx_items_published ON items (published_at);

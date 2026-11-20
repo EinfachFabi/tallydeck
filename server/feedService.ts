@@ -43,6 +43,20 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
 export function createFeedService(db: DatabaseSync, fetchText: FetchText = defaultFetchText, logger?: Logger) {
   let lastSyncAt: number | null = null;
   let running: Promise<SyncResult> | null = null;
+  let schedulerTimer: ReturnType<typeof setInterval> | null = null;
+  let startupTimer: ReturnType<typeof setTimeout> | null = null;
+  let schedulerActive = false;
+  let currentPollIntervalMinutes: repo.PollIntervalMinutes = repo.getServerSettings(db).pollIntervalMinutes;
+
+  function applyAutoArchive(): number {
+    const settings = repo.getServerSettings(db);
+    if (!settings.autoArchiveEnabled) return 0;
+    const archived = repo.archiveOldUncompleted(db, settings.autoArchiveDays);
+    if (archived > 0) {
+      logger?.info(`Auto-archived ${archived} unread items older than ${settings.autoArchiveDays} days`);
+    }
+    return archived;
+  }
 
   async function fetchFeed(feedUrl: string, type: FeedType) {
     const res = await fetchText(feedUrl);
@@ -110,6 +124,7 @@ export function createFeedService(db: DatabaseSync, fetchText: FetchText = defau
     });
     const added = repo.insertItems(db, feedId, parsed.items);
     repo.updateFeedFetchState(db, feedId, null);
+    applyAutoArchive();
     logger?.info(`Added ${type} feed "${title}" with ${added} items`);
 
     const feed = repo.listFeeds(db, type).find((f) => f.id === feedId) ?? repo.getFeed(db, feedId)!;
@@ -137,6 +152,7 @@ export function createFeedService(db: DatabaseSync, fetchText: FetchText = defau
       result.added += r.added;
       if (r.error) result.errors.push({ feedId: feeds[i].id, title: feeds[i].title, error: r.error });
     });
+    applyAutoArchive();
     return result;
   }
 
@@ -236,17 +252,51 @@ export function createFeedService(db: DatabaseSync, fetchText: FetchText = defau
     return { imported, skipped, failed, errors };
   }
 
-  function startScheduler(intervalMinutes: number): () => void {
+  function clearSchedulerTimers(): void {
+    if (startupTimer) {
+      clearTimeout(startupTimer);
+      startupTimer = null;
+    }
+    if (schedulerTimer) {
+      clearInterval(schedulerTimer);
+      schedulerTimer = null;
+    }
+  }
+
+  function scheduleInterval(intervalMinutes: number, runInitial = false): void {
+    clearSchedulerTimers();
+    currentPollIntervalMinutes = repo.normalizePollInterval(intervalMinutes, 15);
+    if (!schedulerActive || currentPollIntervalMinutes <= 0) return;
+
     const tick = () => {
       syncAll().catch((err) => logger?.warn(`Scheduled sync failed: ${errorMessage(err)}`));
     };
-    // Initial sync shortly after startup (non-blocking), then on the interval.
-    const startup = setTimeout(tick, 3_000);
-    const interval = setInterval(tick, intervalMinutes * 60_000);
+    if (runInitial) {
+      startupTimer = setTimeout(tick, 3_000);
+    }
+    schedulerTimer = setInterval(tick, currentPollIntervalMinutes * 60_000);
+  }
+
+  function startScheduler(initialIntervalMinutes?: number): () => void {
+    schedulerActive = true;
+    const saved = repo.getServerSettings(db, initialIntervalMinutes ?? 15);
+    scheduleInterval(saved.pollIntervalMinutes, true);
     return () => {
-      clearTimeout(startup);
-      clearInterval(interval);
+      schedulerActive = false;
+      clearSchedulerTimers();
     };
+  }
+
+  function setPollInterval(intervalMinutes: repo.PollIntervalMinutes): void {
+    currentPollIntervalMinutes = intervalMinutes;
+    if (schedulerActive) {
+      scheduleInterval(intervalMinutes, false);
+      logger?.info(
+        intervalMinutes > 0
+          ? `Background sync interval updated to every ${intervalMinutes} minutes`
+          : 'Background sync disabled (Off)',
+      );
+    }
   }
 
   return {
@@ -255,7 +305,13 @@ export function createFeedService(db: DatabaseSync, fetchText: FetchText = defau
     syncAll,
     syncFeed,
     startScheduler,
-    getSyncState: () => ({ lastSyncAt, syncing: running !== null }),
+    setPollInterval,
+    applyAutoArchive,
+    getSyncState: () => ({
+      lastSyncAt,
+      syncing: running !== null,
+      pollIntervalMinutes: currentPollIntervalMinutes,
+    }),
   };
 }
 

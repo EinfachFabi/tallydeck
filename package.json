@@ -1,6 +1,6 @@
 {
   "name": "tallydeck",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Self-hosted Docker dashboard for YouTube and RSS feeds with topic tags, weekly stats, and an inbox-zero workflow.",
   "private": true,
   "type": "module",

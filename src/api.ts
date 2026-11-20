@@ -1,4 +1,15 @@
-import type { Feed, FeedType, Health, Item, ItemsResponse, OpmlImportResult, SyncResult } from './types';
+import type {
+  Feed,
+  FeedType,
+  FullBackupPayload,
+  Health,
+  Item,
+  ItemsResponse,
+  OpmlImportResult,
+  RestoreBackupResult,
+  ServerSettings,
+  SyncResult,
+} from './types';
 
 export const UNCATEGORIZED_TOKEN = '__uncategorized__';
 
@@ -42,6 +53,16 @@ function qs(params: Record<string, string | number | boolean | undefined | null>
 
 export const api = {
   health: () => request<Health>('GET', '/api/health'),
+
+  getSettings: () => request<{ settings: ServerSettings }>('GET', '/api/settings').then((r) => r.settings),
+
+  updateSettings: (patch: Partial<ServerSettings>) =>
+    request<{ settings: ServerSettings; archived: number }>('PATCH', '/api/settings', patch),
+
+  exportBackup: () => request<FullBackupPayload>('GET', '/api/backup'),
+
+  restoreBackup: (payload: FullBackupPayload) =>
+    request<RestoreBackupResult>('POST', '/api/backup', payload),
 
   getFeeds: (type: FeedType, hideShorts: boolean) =>
     request<{ feeds: Feed[] }>('GET', `/api/feeds?${qs({ type, hideShorts })}`).then((r) => r.feeds),

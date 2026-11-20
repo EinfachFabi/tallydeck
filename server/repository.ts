@@ -49,6 +49,7 @@ export interface ItemDto {
   publishedAt: number | null;
   isShort: boolean;
   isCompleted: boolean;
+  isArchived?: boolean;
   completedAt: number | null;
   createdAt: number;
 }
@@ -405,5 +406,330 @@ export function getStats(db: DatabaseSync, filter: ItemFilter, now = Date.now(),
     pendingCount: Number(totals.pending),
     feedCount: Number(feedCountRow.c),
     weekly,
+  };
+}
+
+// ---------- Server Settings & Auto-Cleanup ----------
+
+export const VALID_POLL_INTERVALS = [0, 5, 15, 30, 60] as const;
+export type PollIntervalMinutes = (typeof VALID_POLL_INTERVALS)[number];
+
+export interface ServerSettingsDto {
+  pollIntervalMinutes: PollIntervalMinutes;
+  autoArchiveEnabled: boolean;
+  autoArchiveDays: number;
+}
+
+function getSettingValue(db: DatabaseSync, key: string): string | null {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as Row | undefined;
+  return row ? str(row.value) : null;
+}
+
+function setSettingValue(db: DatabaseSync, key: string, value: string): void {
+  db.prepare(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(key, value);
+}
+
+export function normalizePollInterval(value: unknown, fallback: PollIntervalMinutes = 15): PollIntervalMinutes {
+  const n = Number(value);
+  if ((VALID_POLL_INTERVALS as readonly number[]).includes(n)) {
+    return n as PollIntervalMinutes;
+  }
+  return fallback;
+}
+
+export function getServerSettings(db: DatabaseSync, defaultPollInterval = 15): ServerSettingsDto {
+  const rawPoll = getSettingValue(db, 'pollIntervalMinutes');
+  const rawAutoEnabled = getSettingValue(db, 'autoArchiveEnabled');
+  const rawAutoDays = getSettingValue(db, 'autoArchiveDays');
+
+  const pollIntervalMinutes =
+    rawPoll !== null
+      ? normalizePollInterval(rawPoll, normalizePollInterval(defaultPollInterval, 15))
+      : normalizePollInterval(defaultPollInterval, 15);
+  const autoArchiveEnabled = rawAutoEnabled === 'true' || rawAutoEnabled === '1';
+  const parsedDays = Number(rawAutoDays);
+  const autoArchiveDays = Number.isFinite(parsedDays) && parsedDays >= 1 ? Math.min(Math.round(parsedDays), 365) : 30;
+
+  return {
+    pollIntervalMinutes,
+    autoArchiveEnabled,
+    autoArchiveDays,
+  };
+}
+
+export function updateServerSettings(
+  db: DatabaseSync,
+  patch: Partial<ServerSettingsDto>,
+  defaultPollInterval = 15,
+): ServerSettingsDto {
+  const current = getServerSettings(db, defaultPollInterval);
+  const next: ServerSettingsDto = {
+    pollIntervalMinutes:
+      patch.pollIntervalMinutes !== undefined
+        ? normalizePollInterval(patch.pollIntervalMinutes, current.pollIntervalMinutes)
+        : current.pollIntervalMinutes,
+    autoArchiveEnabled:
+      typeof patch.autoArchiveEnabled === 'boolean' ? patch.autoArchiveEnabled : current.autoArchiveEnabled,
+    autoArchiveDays:
+      patch.autoArchiveDays !== undefined && Number.isFinite(Number(patch.autoArchiveDays))
+        ? Math.min(Math.max(Math.round(Number(patch.autoArchiveDays)), 1), 365)
+        : current.autoArchiveDays,
+  };
+
+  setSettingValue(db, 'pollIntervalMinutes', String(next.pollIntervalMinutes));
+  setSettingValue(db, 'autoArchiveEnabled', next.autoArchiveEnabled ? 'true' : 'false');
+  setSettingValue(db, 'autoArchiveDays', String(next.autoArchiveDays));
+  return next;
+}
+
+/**
+ * Automatically archives unread items (`is_completed = 0`) whose published_at (or created_at)
+ * is older than `days` days by setting `is_completed = 2` (archived without being watched/read).
+ *
+ * - Newer unread items (e.g. from today or within the last `days` days) stay untouched in the inbox.
+ * - Already watched/read items (`is_completed = 1`) stay untouched and keep their stats.
+ * - Archived items (`is_completed = 2`) are removed from the inbox, stay in SQLite so background sync
+ *   never re-imports them, and do NOT count toward watched/read statistics or appear in the right table.
+ */
+export function archiveOldUncompleted(db: DatabaseSync, days: number, now = Date.now()): number {
+  const clampedDays = Math.min(Math.max(Math.round(days), 1), 365);
+  const cutoff = now - clampedDays * DAY_MS;
+  const result = db
+    .prepare(
+      `UPDATE items
+          SET is_completed = 2,
+              completed_at = NULL
+        WHERE is_completed = 0
+          AND COALESCE(published_at, created_at) < ?`,
+    )
+    .run(cutoff);
+  return Number(result.changes);
+}
+
+// ---------- Full Database Backup & Restore ----------
+
+export interface BackupFeedRecord {
+  type: FeedType;
+  title: string;
+  feedUrl: string;
+  sourceUrl: string | null;
+  siteUrl: string | null;
+  channelId: string | null;
+  iconUrl: string | null;
+  category: string | null;
+  lastFetchedAt: number | null;
+  lastError: string | null;
+  createdAt: number;
+}
+
+export interface BackupItemRecord {
+  feedType: FeedType;
+  feedUrl: string;
+  externalId: string;
+  title: string;
+  url: string;
+  thumbnailUrl: string | null;
+  author: string | null;
+  summary: string | null;
+  publishedAt: number | null;
+  isShort: boolean;
+  isCompleted: boolean;
+  isArchived?: boolean;
+  completedAt: number | null;
+  createdAt: number;
+}
+
+export interface FullBackupPayload {
+  app: 'tallydeck';
+  version: number;
+  exportedAt: number;
+  serverSettings?: Partial<ServerSettingsDto>;
+  clientSettings?: Record<string, unknown>;
+  feeds: BackupFeedRecord[];
+  items: BackupItemRecord[];
+}
+
+export interface RestoreBackupResult {
+  feedsRestored: number;
+  itemsRestored: number;
+  serverSettings: ServerSettingsDto;
+}
+
+export function exportFullBackup(db: DatabaseSync, defaultPollInterval = 15, now = Date.now()): FullBackupPayload {
+  const feedRows = db.prepare('SELECT * FROM feeds ORDER BY id ASC').all() as Row[];
+  const itemRows = db
+    .prepare(
+      `SELECT i.*, f.type AS feed_type, f.feed_url AS feed_url
+         FROM items i
+         JOIN feeds f ON f.id = i.feed_id
+        ORDER BY i.id ASC`,
+    )
+    .all() as Row[];
+
+  const feeds: BackupFeedRecord[] = feedRows.map((row) => ({
+    type: row.type as FeedType,
+    title: String(row.title),
+    feedUrl: String(row.feed_url),
+    sourceUrl: str(row.source_url),
+    siteUrl: str(row.site_url),
+    channelId: str(row.channel_id),
+    iconUrl: str(row.icon_url),
+    category: str(row.category),
+    lastFetchedAt: num(row.last_fetched_at),
+    lastError: str(row.last_error),
+    createdAt: Number(row.created_at),
+  }));
+
+  const items: BackupItemRecord[] = itemRows.map((row) => ({
+    feedType: row.feed_type as FeedType,
+    feedUrl: String(row.feed_url),
+    externalId: String(row.external_id),
+    title: String(row.title),
+    url: String(row.url),
+    thumbnailUrl: str(row.thumbnail_url),
+    author: str(row.author),
+    summary: str(row.summary),
+    publishedAt: num(row.published_at),
+    isShort: Number(row.is_short) === 1,
+    isCompleted: Number(row.is_completed) === 1,
+    isArchived: Number(row.is_completed) === 2,
+    completedAt: num(row.completed_at),
+    createdAt: Number(row.created_at),
+  }));
+
+  return {
+    app: 'tallydeck',
+    version: 1,
+    exportedAt: now,
+    serverSettings: getServerSettings(db, defaultPollInterval),
+    feeds,
+    items,
+  };
+}
+
+export function restoreFullBackup(
+  db: DatabaseSync,
+  payload: FullBackupPayload,
+  defaultPollInterval = 15,
+  now = Date.now(),
+): RestoreBackupResult {
+  const upsertFeedStmt = db.prepare(
+    `INSERT INTO feeds (type, title, feed_url, source_url, site_url, channel_id, icon_url, category, last_fetched_at, last_error, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(type, feed_url) DO UPDATE SET
+       title      = excluded.title,
+       source_url = COALESCE(excluded.source_url, feeds.source_url),
+       site_url   = COALESCE(excluded.site_url, feeds.site_url),
+       channel_id = COALESCE(excluded.channel_id, feeds.channel_id),
+       icon_url   = COALESCE(excluded.icon_url, feeds.icon_url),
+       category   = COALESCE(excluded.category, feeds.category)`,
+  );
+
+  const selectFeedIdStmt = db.prepare('SELECT id FROM feeds WHERE type = ? AND feed_url = ?');
+
+  const upsertItemStmt = db.prepare(
+    `INSERT INTO items
+       (feed_id, external_id, title, url, thumbnail_url, author, summary, published_at, is_short, is_completed, completed_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(feed_id, external_id) DO UPDATE SET
+       is_completed = CASE
+         WHEN items.is_completed = 1 OR excluded.is_completed = 1 THEN 1
+         WHEN items.is_completed = 2 OR excluded.is_completed = 2 THEN 2
+         ELSE 0
+       END,
+       completed_at = COALESCE(items.completed_at, excluded.completed_at)`,
+  );
+
+  let feedsRestored = 0;
+  let itemsRestored = 0;
+  const feedIdMap = new Map<string, number>();
+
+  db.exec('BEGIN');
+  try {
+    for (const f of payload.feeds ?? []) {
+      if ((f.type !== 'youtube' && f.type !== 'rss') || typeof f.feedUrl !== 'string' || !f.feedUrl.trim()) {
+        continue;
+      }
+      const feedUrl = f.feedUrl.trim();
+      upsertFeedStmt.run(
+        f.type,
+        typeof f.title === 'string' && f.title.trim() ? f.title.trim() : feedUrl,
+        feedUrl,
+        str(f.sourceUrl),
+        str(f.siteUrl),
+        str(f.channelId),
+        str(f.iconUrl),
+        normalizeCategory(f.category),
+        num(f.lastFetchedAt),
+        str(f.lastError),
+        Number.isFinite(Number(f.createdAt)) ? Number(f.createdAt) : now,
+      );
+      const row = selectFeedIdStmt.get(f.type, feedUrl) as Row | undefined;
+      if (row) {
+        feedIdMap.set(`${f.type}|${feedUrl}`, Number(row.id));
+        feedsRestored += 1;
+      }
+    }
+
+    for (const item of payload.items ?? []) {
+      if (
+        (item.feedType !== 'youtube' && item.feedType !== 'rss') ||
+        typeof item.feedUrl !== 'string' ||
+        typeof item.externalId !== 'string' ||
+        !item.externalId.trim()
+      ) {
+        continue;
+      }
+      const key = `${item.feedType}|${item.feedUrl.trim()}`;
+      let feedId = feedIdMap.get(key);
+      if (feedId === undefined) {
+        const row = selectFeedIdStmt.get(item.feedType, item.feedUrl.trim()) as Row | undefined;
+        if (row) {
+          feedId = Number(row.id);
+          feedIdMap.set(key, feedId);
+        }
+      }
+      if (feedId === undefined) continue;
+
+      const completionState = item.isCompleted ? 1 : item.isArchived ? 2 : 0;
+      upsertItemStmt.run(
+        feedId,
+        item.externalId.trim(),
+        typeof item.title === 'string' && item.title.trim() ? item.title.trim() : item.externalId,
+        typeof item.url === 'string' ? item.url : '',
+        str(item.thumbnailUrl),
+        str(item.author),
+        str(item.summary),
+        num(item.publishedAt),
+        item.isShort ? 1 : 0,
+        completionState,
+        item.isCompleted ? (num(item.completedAt) ?? now) : null,
+        Number.isFinite(Number(item.createdAt)) ? Number(item.createdAt) : now,
+      );
+      itemsRestored += 1;
+    }
+
+    if (payload.serverSettings) {
+      updateServerSettings(db, payload.serverSettings, defaultPollInterval);
+    }
+
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  const serverSettings = getServerSettings(db, defaultPollInterval);
+  if (serverSettings.autoArchiveEnabled) {
+    archiveOldUncompleted(db, serverSettings.autoArchiveDays, now);
+  }
+
+  return {
+    feedsRestored,
+    itemsRestored,
+    serverSettings,
   };
 }

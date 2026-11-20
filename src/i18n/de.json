@@ -17,7 +17,8 @@
     "syncDone": "{count} neu"
   },
   "topbar": {
-    "language": "Sprache"
+    "language": "Sprache",
+    "github": "TallyDeck auf GitHub öffnen"
   },
   "pages": {
     "youtube": {
@@ -83,8 +84,14 @@
   },
   "settings": {
     "title": "Einstellungen",
-    "subtitle": "Darstellung, Anzeige-Limits und OPML-Backups anpassen.",
-    "appearanceTitle": "Darstellung",
+    "subtitle": "Darstellung, Inbox-Limits, Sync & Auto-Cleanup sowie Backups verwalten.",
+    "tabs": {
+      "appearance": "Darstellung",
+      "feeds": "Feeds & Inbox",
+      "sync": "Sync & Cleanup",
+      "backup": "Backups & OPML"
+    },
+    "appearanceTitle": "Darstellung & Ansicht",
     "modeLabel": "Farbmodus",
     "modeHint": "Zwischen Dark Mode (Standard) und Light Mode wechseln.",
     "darkMode": "Dark Mode",
@@ -98,6 +105,10 @@
       "catppuccin": "Catppuccin",
       "gruvbox": "Gruvbox"
     },
+    "densityLabel": "Tabellen-Ansicht",
+    "densityHint": "Comfortable zeigt Vorschaubilder und zweizeilige Titel; Compact zeigt einzeilige Titel ohne Vorschaubilder.",
+    "densityComfortable": "Comfortable (mit Thumbnails)",
+    "densityCompact": "Compact (Einzeilig)",
     "displayTitle": "Feed- & Inbox-Limits",
     "inboxLimitLabel": "Inbox-Anzeigelimit",
     "inboxLimitHint": "Maximale Anzahl an ungelesenen News oder Videos in der linken Inbox-Spalte (Standard: 100).",
@@ -105,12 +116,28 @@
     "completedDaysLabel": "Anzeigedauer für Gesehen / Gelesen",
     "completedDaysHint": "Wie viele Tage erledigte Videos und Artikel in der rechten Spalte angezeigt werden (Standard: 7 Tage, max. 30 Tage).",
     "completedDaysUnit": "Tage",
-    "opmlTitle": "OPML-Import, -Export & Backup",
-    "opmlHint": "Importiere oder sichere deine abonnierten YouTube-Kanäle und RSS-Feeds als OPML-2.0-Datei (inkl. Themen-Ordner).",
+    "syncTitle": "Hintergrund-Sync & Auto-Cleanup",
+    "pollIntervalLabel": "Hintergrund-Sync-Intervall",
+    "pollIntervalHint": "Wie oft TallyDeck abonnierte Kanäle und Feeds automatisch im Hintergrund aktualisiert.",
+    "pollOff": "Aus (Nur manuell)",
+    "pollMinutes": "Alle {minutes} Min.",
+    "autoArchiveLabel": "Auto-Cleanup für alte ungelesene Einträge",
+    "autoArchiveHint": "Sehr alte ungelesene Videos und Artikel (älter als X Tage) automatisch aus der Inbox archivieren. Neuere Einträge bleiben in der Inbox und archivierte Einträge zählen nicht zur Gesehen/Gelesen-Statistik.",
+    "autoArchiveToggle": "Ungelesene Einträge automatisch archivieren, wenn älter als",
+    "autoArchiveDaysUnit": "Tage",
+    "autoArchiveSaved": "Auto-Cleanup aktualisiert ({count} alte Einträge archiviert).",
+    "backupTitle": "Vollständiges Datenbank-Backup & Restore",
+    "backupHint": "Sichere oder stelle den kompletten TallyDeck-Zustand wieder her (inkl. Kanälen, Feeds, Themen, Gesehen/Gelesen-Historie, Wochenstatistiken und Einstellungen).",
+    "exportBackup": "Vollständiges Backup herunterladen (.json)",
+    "restoreBackup": "Backup wiederherstellen",
+    "restoringBackup": "Stelle wieder her…",
+    "backupRestored": "Backup wiederhergestellt: {feeds} Feeds und {items} Einträge geladen.",
+    "opmlTitle": "OPML-Import & -Export",
+    "opmlHint": "Importiere oder exportiere deine abonnierten YouTube-Kanäle und RSS-Feeds als OPML-2.0-Datei (inkl. Themen-Ordner).",
     "youtubeOpml": "YouTube-Kanäle (OPML)",
     "rssOpml": "RSS- / News-Feeds (OPML)",
     "importOpml": "OPML importieren",
-    "exportOpml": "OPML-Export / Backup",
+    "exportOpml": "OPML exportieren",
     "importing": "Importiere…",
     "importResult": "{imported} neu importiert, {skipped} bereits vorhanden, {failed} fehlgeschlagen.",
     "resetDefaults": "Auf Standard zurücksetzen",
@@ -156,6 +183,7 @@
     "invalid_url": "Das sieht nicht nach einem gültigen Link aus.",
     "invalid_type": "Ungültiger Feed-Typ.",
     "invalid_opml": "In dieser OPML-Datei wurden keine gültigen Feeds gefunden.",
+    "invalid_backup": "Diese Datei ist kein gültiges TallyDeck-Backup.",
     "feed_exists": "Dieser Eintrag wurde bereits hinzugefügt.",
     "feed_not_found": "Feed nicht gefunden.",
     "item_not_found": "Eintrag nicht gefunden.",

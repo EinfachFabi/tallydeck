@@ -311,3 +311,78 @@ test('exports and imports OPML 2.0 files for YouTube and RSS feeds including cat
   assert.equal(feedsAfter[0].category, 'Tech');
 });
 
+test('supports updating server settings (pollIntervalMinutes & autoArchive) and auto-archives old unread items without inflating stats', async () => {
+  await addYouTube();
+
+  const initialRes = await app.inject({ method: 'GET', url: '/api/settings' });
+  assert.equal(initialRes.statusCode, 200);
+  assert.equal(initialRes.json().settings.pollIntervalMinutes, 15);
+  assert.equal(initialRes.json().settings.autoArchiveEnabled, false);
+
+  // Backdate one unread item to 40 days ago while keeping the other 2 items recent
+  const itemsBefore = await getItems('type=youtube');
+  const oldUnread = itemsBefore.uncompleted[0];
+  db.prepare('UPDATE items SET published_at = ? WHERE id = ?').run(Date.now() - 40 * DAY_MS, oldUnread.id);
+
+  // Enable auto-archive for items older than 30 days and change poll interval to 30 min
+  const patchRes = await app.inject({
+    method: 'PATCH',
+    url: '/api/settings',
+    payload: {
+      pollIntervalMinutes: 30,
+      autoArchiveEnabled: true,
+      autoArchiveDays: 30,
+    },
+  });
+  assert.equal(patchRes.statusCode, 200);
+  assert.equal(patchRes.json().settings.pollIntervalMinutes, 30);
+  assert.equal(patchRes.json().settings.autoArchiveEnabled, true);
+  assert.equal(patchRes.json().settings.autoArchiveDays, 30);
+  assert.equal(patchRes.json().archived, 1);
+
+  const itemsAfter = await getItems('type=youtube');
+  assert.equal(itemsAfter.uncompleted.length, 2, 'only the 40-day-old unread item was archived; newer items remain in inbox');
+  assert.ok(itemsAfter.uncompleted.every((i: { id: number }) => i.id !== oldUnread.id));
+  assert.equal(itemsAfter.completed.length, 0, 'auto-archived item does not appear in Watched/Read table');
+  assert.equal(itemsAfter.stats.totalCompleted, 0, 'auto-archived item does not count toward watched/read stats');
+  assert.equal(itemsAfter.stats.pendingCount, 2);
+
+  // Re-syncing the feed must not re-add the auto-archived item to the inbox
+  await app.inject({ method: 'POST', url: '/api/feeds/sync', payload: { type: 'youtube' } });
+  const afterSync = await getItems('type=youtube');
+  assert.equal(afterSync.uncompleted.length, 2);
+});
+
+test('exports and restores a full database backup including completion history and settings', async () => {
+  const { feed } = await addYouTube();
+  await app.inject({ method: 'PATCH', url: `/api/feeds/${feed.id}`, payload: { category: 'Tech' } });
+  const before = await getItems('type=youtube');
+  await app.inject({ method: 'PATCH', url: `/api/items/${before.uncompleted[0].id}`, payload: { completed: true } });
+  await app.inject({ method: 'PATCH', url: '/api/settings', payload: { pollIntervalMinutes: 60 } });
+
+  const backupRes = await app.inject({ method: 'GET', url: '/api/backup' });
+  assert.equal(backupRes.statusCode, 200);
+  const backup = backupRes.json();
+  assert.equal(backup.app, 'tallydeck');
+  assert.equal(backup.feeds.length, 1);
+  assert.equal(backup.items.length, 3);
+  assert.equal(backup.serverSettings.pollIntervalMinutes, 60);
+
+  // Wipe feed and reset settings
+  await app.inject({ method: 'DELETE', url: `/api/feeds/${feed.id}` });
+  await app.inject({ method: 'PATCH', url: '/api/settings', payload: { pollIntervalMinutes: 5 } });
+  assert.equal((await getItems('type=youtube')).uncompleted.length, 0);
+
+  // Restore from backup
+  const restoreRes = await app.inject({ method: 'POST', url: '/api/backup', payload: backup });
+  assert.equal(restoreRes.statusCode, 200);
+  assert.equal(restoreRes.json().feedsRestored, 1);
+  assert.equal(restoreRes.json().itemsRestored, 3);
+  assert.equal(restoreRes.json().serverSettings.pollIntervalMinutes, 60);
+
+  const afterRestore = await getItems('type=youtube');
+  assert.equal(afterRestore.uncompleted.length, 2);
+  assert.equal(afterRestore.completed.length, 1);
+  assert.equal(afterRestore.stats.totalCompleted, 1);
+});
+

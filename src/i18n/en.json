@@ -17,7 +17,8 @@
     "syncDone": "{count} new"
   },
   "topbar": {
-    "language": "Language"
+    "language": "Language",
+    "github": "View TallyDeck on GitHub"
   },
   "pages": {
     "youtube": {
@@ -83,8 +84,14 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Customize appearance, inbox display limits, and OPML backups.",
-    "appearanceTitle": "Appearance",
+    "subtitle": "Customize appearance, inbox limits, sync & cleanup, and backups.",
+    "tabs": {
+      "appearance": "Appearance",
+      "feeds": "Feeds & Inbox",
+      "sync": "Sync & Cleanup",
+      "backup": "Backups & OPML"
+    },
+    "appearanceTitle": "Appearance & Layout",
     "modeLabel": "Color Mode",
     "modeHint": "Switch between Dark Mode (default) and Light Mode.",
     "darkMode": "Dark Mode",
@@ -98,6 +105,10 @@
       "catppuccin": "Catppuccin",
       "gruvbox": "Gruvbox"
     },
+    "densityLabel": "Table View Density",
+    "densityHint": "Comfortable shows thumbnails and two-line titles; Compact shows single-line titles without thumbnails.",
+    "densityComfortable": "Comfortable (with Thumbnails)",
+    "densityCompact": "Compact (Single-line)",
     "displayTitle": "Feed & Inbox Limits",
     "inboxLimitLabel": "Inbox display limit",
     "inboxLimitHint": "Maximum number of unread news or videos shown in the inbox table (default: 100).",
@@ -105,12 +116,28 @@
     "completedDaysLabel": "Watched / Read history duration",
     "completedDaysHint": "How many days completed videos and articles stay visible in the right column (default: 7 days, max: 30 days).",
     "completedDaysUnit": "days",
-    "opmlTitle": "OPML Import, Export & Backup",
+    "syncTitle": "Background Sync & Auto-Cleanup",
+    "pollIntervalLabel": "Background sync interval",
+    "pollIntervalHint": "How often TallyDeck automatically checks subscribed channels and feeds for new items in the background.",
+    "pollOff": "Off (Manual sync only)",
+    "pollMinutes": "Every {minutes} min",
+    "autoArchiveLabel": "Auto-cleanup old unread items",
+    "autoArchiveHint": "Automatically archive unread items older than X days so your inbox stays clean (newer items stay in your inbox; archived items do not count toward watched/read stats).",
+    "autoArchiveToggle": "Automatically archive unread items older than",
+    "autoArchiveDaysUnit": "days",
+    "autoArchiveSaved": "Auto-cleanup updated ({count} old items archived).",
+    "backupTitle": "Full Database Backup & Restore",
+    "backupHint": "Export or restore a complete TallyDeck snapshot including all channels, feeds, topics, read/watched history, weekly statistics, and settings.",
+    "exportBackup": "Download Full Backup (.json)",
+    "restoreBackup": "Restore from Backup",
+    "restoringBackup": "Restoring…",
+    "backupRestored": "Backup restored: {feeds} feeds and {items} items imported.",
+    "opmlTitle": "OPML Import & Export",
     "opmlHint": "Import or export your subscribed YouTube channels and RSS feeds as standard OPML 2.0 files (including topic folders).",
     "youtubeOpml": "YouTube Channels (OPML)",
     "rssOpml": "RSS / News Feeds (OPML)",
     "importOpml": "Import OPML",
-    "exportOpml": "Export / Backup OPML",
+    "exportOpml": "Export OPML",
     "importing": "Importing…",
     "importResult": "Imported {imported} new, skipped {skipped} existing, {failed} failed.",
     "resetDefaults": "Reset to defaults",
@@ -156,6 +183,7 @@
     "invalid_url": "That doesn't look like a valid link.",
     "invalid_type": "Invalid feed type.",
     "invalid_opml": "No valid feeds found in this OPML file.",
+    "invalid_backup": "This file is not a valid TallyDeck backup.",
     "feed_exists": "This one has already been added.",
     "feed_not_found": "Feed not found.",
     "item_not_found": "Item not found.",

@@ -67,6 +67,30 @@ export interface OpmlImportResult {
   errors: { url: string; error: string }[];
 }
 
+export type PollIntervalMinutes = 0 | 5 | 15 | 30 | 60;
+
+export interface ServerSettings {
+  pollIntervalMinutes: PollIntervalMinutes;
+  autoArchiveEnabled: boolean;
+  autoArchiveDays: number;
+}
+
+export interface FullBackupPayload {
+  app: 'tallydeck';
+  version: number;
+  exportedAt: number;
+  serverSettings?: Partial<ServerSettings>;
+  clientSettings?: Record<string, unknown>;
+  feeds: unknown[];
+  items: unknown[];
+}
+
+export interface RestoreBackupResult {
+  feedsRestored: number;
+  itemsRestored: number;
+  serverSettings: ServerSettings;
+}
+
 export interface Health {
   status: string;
   version: string;

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Check, CheckCheck, ExternalLink, Inbox, PartyPopper, RefreshCw, Rss, Undo2 } from 'lucide-react';
 import type { FeedType, Item } from '../types';
 import { useI18n } from '../i18n/I18nContext';
+import { useSettings, type ViewDensity } from '../context/SettingsContext';
 import { cn, formatDateTime, formatRelative } from '../utils/format';
 import { getTopicColor } from '../utils/topicColor';
 import { YouTubeIcon } from './YouTubeIcon';
@@ -70,8 +71,56 @@ function Thumbnail({ item, type, done }: { item: Item; type: FeedType; done?: bo
   );
 }
 
-function ItemCell({ item, type, done }: { item: Item; type: FeedType; done?: boolean }) {
+function ItemCell({
+  item,
+  type,
+  done,
+  density,
+}: {
+  item: Item;
+  type: FeedType;
+  done?: boolean;
+  density: ViewDensity;
+}) {
   const { t, locale } = useI18n();
+  const compact = density === 'compact';
+
+  if (compact) {
+    return (
+      <div className="flex min-w-0 items-center justify-between gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {item.feedCategory && (
+            <span
+              className={cn(
+                'shrink-0 rounded px-1.5 py-0.25 text-[10px] font-semibold',
+                getTopicColor(item.feedCategory).badge,
+              )}
+            >
+              {item.feedCategory}
+            </span>
+          )}
+          {item.isShort && (
+            <span className="shrink-0 rounded bg-youtube px-1.5 py-0.25 text-[10px] font-bold uppercase text-white">
+              {t('common.short')}
+            </span>
+          )}
+          <a
+            href={item.url}
+            {...EXTERNAL}
+            title={item.summary ?? item.title}
+            className={cn(
+              'truncate text-sm font-medium transition-colors hover:text-accent hover:underline',
+              done ? 'text-muted/75 line-through decoration-muted/60' : 'text-fg',
+            )}
+          >
+            {item.title}
+          </a>
+        </div>
+        <span className="max-w-36 shrink-0 truncate text-xs text-muted">{item.feedTitle}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-w-0 items-center gap-3.5">
       <Thumbnail item={item} type={type} done={done} />
@@ -179,6 +228,8 @@ export function SplitFeedTables(props: SplitFeedTablesProps) {
     searching,
   } = props;
   const { t, locale } = useI18n();
+  const { viewDensity } = useSettings();
+  const compact = viewDensity === 'compact';
 
   const daysBadgeLabel =
     completedDays === 1
@@ -238,35 +289,41 @@ export function SplitFeedTables(props: SplitFeedTablesProps) {
             <tbody>
               {uncompleted.map((item) => (
                 <tr key={item.id} className="group animate-fade-in border-t border-line/60 hover:bg-elevated/55">
-                  <td className="px-3 py-2.5 align-middle">
+                  <td className={cn('px-3 align-middle', compact ? 'py-1.5' : 'py-2.5')}>
                     <button
                       type="button"
                       onClick={() => onToggle(item, true)}
                       title={t(`${type}.markDone`)}
                       aria-label={t(`${type}.markDone`)}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-line bg-canvas/70 text-muted/60 transition-all hover:scale-105 hover:border-success hover:bg-success/20 hover:text-success"
+                      className={cn(
+                        'flex items-center justify-center rounded-lg border-2 border-line bg-canvas/70 text-muted/60 transition-all hover:scale-105 hover:border-success hover:bg-success/20 hover:text-success',
+                        compact ? 'h-7 w-7' : 'h-9 w-9',
+                      )}
                     >
-                      <Check className="h-5 w-5 stroke-[2.5]" />
+                      <Check className={cn('stroke-[2.5]', compact ? 'h-4 w-4' : 'h-5 w-5')} />
                     </button>
                   </td>
-                  <td className="py-2.5 pr-2">
-                    <ItemCell item={item} type={type} />
+                  <td className={cn('pr-2', compact ? 'py-1.5' : 'py-2.5')}>
+                    <ItemCell item={item} type={type} density={viewDensity} />
                   </td>
                   <td
-                    className="hidden px-3 py-2.5 text-xs text-muted sm:table-cell"
+                    className={cn('hidden px-3 text-xs text-muted sm:table-cell', compact ? 'py-1.5' : 'py-2.5')}
                     title={formatDateTime(item.publishedAt, locale)}
                   >
                     {formatRelative(item.publishedAt ?? item.createdAt, locale)}
                   </td>
-                  <td className="py-2.5 pr-3 text-right">
+                  <td className={cn('pr-3 text-right', compact ? 'py-1.5' : 'py-2.5')}>
                     <a
                       href={item.url}
                       {...EXTERNAL}
                       title={t('common.open')}
                       aria-label={t('common.open')}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-elevated hover:text-accent"
+                      className={cn(
+                        'inline-flex items-center justify-center rounded-lg text-muted transition-colors hover:bg-elevated hover:text-accent',
+                        compact ? 'h-7 w-7' : 'h-9 w-9',
+                      )}
                     >
-                      <ExternalLink className="h-5 w-5" />
+                      <ExternalLink className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
                     </a>
                   </td>
                 </tr>
@@ -313,24 +370,27 @@ export function SplitFeedTables(props: SplitFeedTablesProps) {
                     key={item.id}
                     className="group animate-fade-in border-t border-line/60 hover:bg-elevated/45"
                   >
-                    <td className="py-2.5 pl-4 pr-2">
-                      <ItemCell item={item} type={type} done />
+                    <td className={cn('pl-4 pr-2', compact ? 'py-1.5' : 'py-2.5')}>
+                      <ItemCell item={item} type={type} done density={viewDensity} />
                     </td>
                     <td
-                      className="hidden px-3 py-2.5 text-xs text-muted/80 sm:table-cell"
+                      className={cn('hidden px-3 text-xs text-muted/80 sm:table-cell', compact ? 'py-1.5' : 'py-2.5')}
                       title={formatDateTime(item.completedAt, locale)}
                     >
                       {formatRelative(item.completedAt, locale)}
                     </td>
-                    <td className="py-2.5 pr-3 text-right">
+                    <td className={cn('pr-3 text-right', compact ? 'py-1.5' : 'py-2.5')}>
                       <button
                         type="button"
                         onClick={() => onToggle(item, false)}
                         title={t('common.undo')}
                         aria-label={t('common.undo')}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-elevated hover:text-warning"
+                        className={cn(
+                          'inline-flex items-center justify-center rounded-lg text-muted transition-colors hover:bg-elevated hover:text-warning',
+                          compact ? 'h-7 w-7' : 'h-9 w-9',
+                        )}
                       >
-                        <Undo2 className="h-5 w-5" />
+                        <Undo2 className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
                       </button>
                     </td>
                   </tr>

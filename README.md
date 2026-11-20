@@ -6,19 +6,15 @@
 
 ## Features
 
-- **Two-Table Inbox-Zero Workflow:**
-  - **Left Table (New / Unread):** New YouTube uploads and unread news articles in full color (configurable inbox limit, default `100`), with quick per-page **Sync** and **Mark all as watched/read** buttons. Tick an entry off and it moves immediately to the right table.
-  - **Right Table (Watched / Read):** Completed items from the last `7` days (configurable from `1` to `30` days in Settings) with grayed-out thumbnails, strikethrough titles, completion timestamps, and a one-click **Undo** button. Older completed items remain in SQLite so lifetime statistics and duplicate protection stay intact.
-- **YouTube Without API Key:** Paste any YouTube channel link (`https://www.youtube.com/@name`, `/channel/UC…`, a video link, or RSS URL) – TallyDeck resolves it automatically to the official YouTube RSS feed. Includes a **Hide Shorts** toggle.
-- **RSS & Atom Auto-Discovery:** Paste a direct feed URL **or a website URL** – TallyDeck automatically discovers the RSS/Atom feed.
-- **Topics / Tag Grouping with Distinct Colors:** Group channels and feeds by topic (e.g. *Tech*, *Gaming*, *Economy*, *Homelab*, *Science*, *News* or any custom topic) with color-coded badges and topic filters.
-- **Settings Menu (Themes, Dark/Light Mode, Limits & OPML Backup):** Accessible from the bottom of the left sidebar:
-  - **Dark Mode / Light Mode** switch (Dark Mode by default) and **5 color themes** (**Monokai** default, **Dracula**, **Nord**, **Catppuccin**, **Gruvbox**).
-  - Configurable **Inbox display limit** (default `100` items) and **Watched / Read history duration** (`7` days default, up to `30` days).
-  - **OPML 2.0 Import & Export / Backup** buttons separately for **YouTube channels** and **RSS feeds** (preserving topic folders).
-- **Automatic Background Sync:** Polls all subscribed channels and feeds in the background (default: every 15 minutes) and adds new items automatically without duplicating or resetting already watched/read items.
-- **Statistics & Weekly Trend:** Tracks total watched/read, this week (with comparison vs. last week), weekly average, unread count, and an 8-week bar chart.
-- **Collapsible Sidebar & Multilingual UI:** Collapsible icon sidebar, confirmation dialog before removing channels/feeds, and top-right language switcher (**English** default, **German** included).
+- **Two-Table Inbox-Zero Workflow:** Unread videos and news on the left, recently watched/read items on the right with one-click **Undo**, while keeping lifetime stats and duplicate protection in SQLite.
+- **YouTube Without API Key & RSS Auto-Discovery:** Paste any YouTube channel link (`@handle`, `/channel/UC…`, or video URL) or website/feed URL – TallyDeck resolves the feed automatically and includes a **Hide Shorts** toggle.
+- **Topics & Tag Grouping:** Organize channels and feeds by color-coded topics (e.g. *Tech*, *Gaming*, *Homelab*, *News*) with instant topic filters.
+- **Statistics & Weekly Trend:** Tracks total watched/read, weekly progress vs. last week, weekly average, unread count, and an 8-week bar chart.
+- **Customizable Settings Menu:**
+  - **Themes & Layout:** Dark/Light mode, 5 color themes (*Monokai*, *Dracula*, *Nord*, *Catppuccin*, *Gruvbox*), and *Comfortable* or *Compact* table view.
+  - **Sync & Inbox Control:** Configurable background sync interval, inbox display limits, history retention days, and optional auto-cleanup for old unread items.
+  - **Backups & OPML:** Full database JSON backup & restore plus separate OPML 2.0 import/export for YouTube and RSS.
+- **Multilingual UI:** English (default) and German included.
 
 ---
 
@@ -34,7 +30,6 @@ docker run -d \
   -p 5555:5555 \
   -v tallydeck-data:/app/data \
   -e PORT=5555 \
-  -e POLL_INTERVAL_MINUTES=15 \
   --restart unless-stopped \
   ghcr.io/einfachfabi/tallydeck:latest
 ```
@@ -57,7 +52,6 @@ services:
     environment:
       - PORT=5555
       - DB_PATH=/app/data/tallydeck.db
-      - POLL_INTERVAL_MINUTES=15
     restart: unless-stopped
 
 volumes:
@@ -80,11 +74,12 @@ Then open **<http://localhost:5555>**.
 
 ## Configuration (Environment Variables)
 
-| Variable                | Default                  | Description                              |
-| ----------------------- | ------------------------ | ---------------------------------------- |
-| `PORT`                  | `5555`                   | HTTP server port                         |
-| `DB_PATH`               | `/app/data/tallydeck.db` | Path to the SQLite database file         |
-| `POLL_INTERVAL_MINUTES` | `15`                     | Background feed sync interval in minutes |
+| Variable  | Default                  | Description                      |
+| --------- | ------------------------ | -------------------------------- |
+| `PORT`    | `5555`                   | HTTP server port                 |
+| `DB_PATH` | `/app/data/tallydeck.db` | Path to the SQLite database file |
+
+> **Tip:** The background feed sync interval (*Off / 5 min / 15 min / 30 min / 60 min*) and full database backups can be configured directly in the **Settings** menu inside the web UI.
 
 ### Database Backup
 
@@ -124,7 +119,11 @@ src/               React + Vite + Tailwind CSS frontend (Monokai theme)
 
 | Method   | Endpoint                                          | Description                                                |
 | -------- | ------------------------------------------------- | ---------------------------------------------------------- |
-| `GET`    | `/api/health`                                     | Health status and last sync timestamp                      |
+| `GET`    | `/api/health`                                     | Health status, sync interval, and last sync timestamp      |
+| `GET`    | `/api/settings`                                   | Get server settings (sync interval, auto-archive config)   |
+| `PATCH`  | `/api/settings`                                   | Update server settings (`pollIntervalMinutes`, auto-archive)|
+| `GET`    | `/api/backup`                                     | Export full JSON backup (feeds, items, stats, settings)    |
+| `POST`   | `/api/backup`                                     | Restore full JSON backup                                   |
 | `GET`    | `/api/feeds?type=youtube\|rss`                    | List subscribed channels or feeds with unread counts       |
 | `POST`   | `/api/feeds`                                      | `{ type, url, category? }` – add channel/feed              |
 | `PATCH`  | `/api/feeds/:id`                                  | `{ category }` – assign or change a feed's topic           |

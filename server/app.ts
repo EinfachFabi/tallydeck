@@ -17,7 +17,7 @@ export interface AppOptions {
   logger?: boolean;
 }
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 function parseType(value: unknown): FeedType {
   if (!isFeedType(value)) throw new AppError('invalid_type', 400, 'Parameter "type" must be "youtube" or "rss".');
@@ -57,12 +57,60 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   // ---------- API ----------
 
-  app.get('/api/health', async () => ({
-    status: 'ok',
-    version: VERSION,
-    pollIntervalMinutes: options.pollIntervalMinutes ?? null,
-    ...feedService.getSyncState(),
+  app.get('/api/health', async () => {
+    const syncState = feedService.getSyncState();
+    return {
+      status: 'ok',
+      version: VERSION,
+      ...syncState,
+    };
+  });
+
+  app.get('/api/settings', async () => ({
+    settings: repo.getServerSettings(db, options.pollIntervalMinutes ?? 15),
   }));
+
+  app.patch('/api/settings', async (request) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const patch: Partial<repo.ServerSettingsDto> = {};
+    if (body.pollIntervalMinutes !== undefined) {
+      const n = Number(body.pollIntervalMinutes);
+      if (!(repo.VALID_POLL_INTERVALS as readonly number[]).includes(n)) {
+        throw new AppError('bad_request', 400, 'Invalid pollIntervalMinutes. Allowed: 0, 5, 15, 30, 60.');
+      }
+      patch.pollIntervalMinutes = n as repo.PollIntervalMinutes;
+    }
+    if (body.autoArchiveEnabled !== undefined) {
+      if (typeof body.autoArchiveEnabled !== 'boolean') {
+        throw new AppError('bad_request', 400, 'autoArchiveEnabled must be a boolean.');
+      }
+      patch.autoArchiveEnabled = body.autoArchiveEnabled;
+    }
+    if (body.autoArchiveDays !== undefined) {
+      const days = Number(body.autoArchiveDays);
+      if (!Number.isFinite(days) || days < 1 || days > 365) {
+        throw new AppError('bad_request', 400, 'autoArchiveDays must be between 1 and 365.');
+      }
+      patch.autoArchiveDays = Math.round(days);
+    }
+
+    const settings = repo.updateServerSettings(db, patch, options.pollIntervalMinutes ?? 15);
+    feedService.setPollInterval(settings.pollIntervalMinutes);
+    const archived = settings.autoArchiveEnabled ? repo.archiveOldUncompleted(db, settings.autoArchiveDays) : 0;
+    return { settings, archived };
+  });
+
+  app.get('/api/backup', async () => repo.exportFullBackup(db, options.pollIntervalMinutes ?? 15));
+
+  app.post('/api/backup', async (request) => {
+    const body = (request.body ?? {}) as Partial<repo.FullBackupPayload>;
+    if (body.app !== 'tallydeck' || !Array.isArray(body.feeds) || !Array.isArray(body.items)) {
+      throw new AppError('invalid_backup', 400, 'Invalid TallyDeck backup file.');
+    }
+    const result = repo.restoreFullBackup(db, body as repo.FullBackupPayload, options.pollIntervalMinutes ?? 15);
+    feedService.setPollInterval(result.serverSettings.pollIntervalMinutes);
+    return result;
+  });
 
   app.get('/api/feeds', async (request) => {
     const q = request.query as Record<string, unknown>;
@@ -132,6 +180,10 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       category: optionalString(q.category),
       hideShorts: parseBool(q.hideShorts),
     };
+    const serverSettings = repo.getServerSettings(db, options.pollIntervalMinutes ?? 15);
+    if (serverSettings.autoArchiveEnabled) {
+      repo.archiveOldUncompleted(db, serverSettings.autoArchiveDays);
+    }
     const inboxLimit = Math.min(Math.max(Number(q.inboxLimit) || 100, 1), 5000);
     const completedLimit = Math.min(Math.max(Number(q.completedLimit) || 100, 1), 5000);
     const completedDays = Math.min(Math.max(Number(q.completedDays) || 7, 1), 30);

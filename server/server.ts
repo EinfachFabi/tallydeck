@@ -37,7 +37,10 @@ async function main() {
   app.log.info(`TallyDeck running on http://localhost:${config.port} (db: ${config.dbPath})`);
 
   const stopScheduler = feedService.startScheduler(config.pollIntervalMinutes);
-  app.log.info(`Background sync every ${config.pollIntervalMinutes} minutes`);
+  const activePoll = feedService.getSyncState().pollIntervalMinutes;
+  app.log.info(
+    activePoll > 0 ? `Background sync every ${activePoll} minutes` : 'Background sync disabled (Off)',
+  );
 
   const shutdown = async () => {
     stopScheduler();

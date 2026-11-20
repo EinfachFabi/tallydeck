@@ -14,8 +14,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production \
     PORT=5555 \
-    DB_PATH=/app/data/tallydeck.db \
-    POLL_INTERVAL_MINUTES=15
+    DB_PATH=/app/data/tallydeck.db
 
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules

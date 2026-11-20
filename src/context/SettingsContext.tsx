@@ -3,6 +3,7 @@ import { useLocalStorage } from '../utils/useLocalStorage';
 
 export type ColorMode = 'dark' | 'light';
 export type ThemeId = 'monokai' | 'dracula' | 'nord' | 'catppuccin' | 'gruvbox';
+export type ViewDensity = 'comfortable' | 'compact';
 
 export interface ThemeDefinition {
   id: ThemeId;
@@ -58,6 +59,7 @@ export const THEMES: readonly ThemeDefinition[] = [
 
 export const DEFAULT_COLOR_MODE: ColorMode = 'dark';
 export const DEFAULT_THEME: ThemeId = 'monokai';
+export const DEFAULT_VIEW_DENSITY: ViewDensity = 'comfortable';
 export const DEFAULT_INBOX_LIMIT = 100;
 export const DEFAULT_COMPLETED_DAYS = 7;
 export const MIN_COMPLETED_DAYS = 1;
@@ -70,6 +72,8 @@ export interface SettingsContextValue {
   setColorMode: (mode: ColorMode) => void;
   theme: ThemeId;
   setTheme: (theme: ThemeId) => void;
+  viewDensity: ViewDensity;
+  setViewDensity: (density: ViewDensity) => void;
   inboxLimit: number;
   setInboxLimit: (limit: number) => void;
   completedDays: number;
@@ -86,6 +90,10 @@ function clamp(val: number, min: number, max: number, fallback: number): number 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [colorMode, setColorMode] = useLocalStorage<ColorMode>('tallydeck.settings.colorMode', DEFAULT_COLOR_MODE);
   const [theme, setTheme] = useLocalStorage<ThemeId>('tallydeck.settings.theme', DEFAULT_THEME);
+  const [viewDensity, setViewDensity] = useLocalStorage<ViewDensity>(
+    'tallydeck.settings.viewDensity',
+    DEFAULT_VIEW_DENSITY,
+  );
   const [rawInboxLimit, setRawInboxLimit] = useLocalStorage<number>('tallydeck.settings.inboxLimit', DEFAULT_INBOX_LIMIT);
   const [rawCompletedDays, setRawCompletedDays] = useLocalStorage<number>(
     'tallydeck.settings.completedDays',
@@ -122,12 +130,25 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setColorMode,
       theme: THEMES.some((t) => t.id === theme) ? theme : DEFAULT_THEME,
       setTheme,
+      viewDensity: viewDensity === 'compact' ? 'compact' : 'comfortable',
+      setViewDensity,
       inboxLimit,
       setInboxLimit,
       completedDays,
       setCompletedDays,
     }),
-    [colorMode, setColorMode, theme, setTheme, inboxLimit, setInboxLimit, completedDays, setCompletedDays],
+    [
+      colorMode,
+      setColorMode,
+      theme,
+      setTheme,
+      viewDensity,
+      setViewDensity,
+      inboxLimit,
+      setInboxLimit,
+      completedDays,
+      setCompletedDays,
+    ],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
+import type { VersionInfo } from '../types';
 import { NAV_ITEMS } from '../navigation';
 import { useI18n } from '../i18n/I18nContext';
 import { cn } from '../utils/format';
@@ -8,6 +9,7 @@ interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   onOpenSettings: () => void;
+  versionInfo: VersionInfo | null;
 }
 
 /** Tooltip shown next to icons while the sidebar is collapsed. */
@@ -20,8 +22,11 @@ function Tooltip({ label, show }: { label: string; show: boolean }) {
   );
 }
 
-export function Sidebar({ collapsed, onToggle, onOpenSettings }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, onOpenSettings, versionInfo }: SidebarProps) {
   const { t } = useI18n();
+  const currentVersion = versionInfo?.current ?? __APP_VERSION__;
+  const updateAvailable = Boolean(versionInfo?.updateAvailable && versionInfo.latest);
+  const releaseHref = versionInfo?.releaseUrl ?? versionInfo?.releasesUrl;
 
   return (
     <aside
@@ -31,20 +36,34 @@ export function Sidebar({ collapsed, onToggle, onOpenSettings }: SidebarProps) {
       )}
     >
       {/* Brand + collapse toggle */}
-      <div className={cn('flex h-16 items-center border-b border-line', collapsed ? 'justify-center' : 'justify-between px-4')}>
+      <div className={cn('flex h-16 items-center border-b border-line', collapsed ? 'justify-center' : 'justify-between px-3')}>
         {!collapsed && (
-          <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="flex min-w-0 items-center gap-2.5 overflow-hidden">
             <img src="/favicon.svg" alt="" className="h-9 w-9 shrink-0" />
             <div className="min-w-0">
               <div className="truncate text-base font-semibold tracking-tight">{t('app.name')}</div>
-              <div className="truncate text-[11px] text-muted">{t('app.tagline')}</div>
+              <div className="flex items-center gap-1.5 truncate text-[10.5px] leading-tight text-muted">
+                <span className="shrink-0 tabular-nums">v{currentVersion}</span>
+                {updateAvailable && versionInfo?.latest && releaseHref && (
+                  <a
+                    href={releaseHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={t('update.availableTooltip', { version: `v${versionInfo.latest}` })}
+                    className="inline-flex min-w-0 items-center gap-1 font-medium text-success transition-opacity hover:underline"
+                  >
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" aria-hidden="true" />
+                    <span className="truncate">{t('update.badge', { version: `v${versionInfo.latest}` })}</span>
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         )}
         <button
           type="button"
           onClick={onToggle}
-          className="group relative rounded-lg p-2.5 text-muted transition-colors hover:bg-elevated hover:text-fg"
+          className="group relative shrink-0 rounded-lg p-1.5 text-muted transition-colors hover:bg-elevated hover:text-fg"
           aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
         >
           {collapsed ? <PanelLeftOpen className="h-5.5 w-5.5" /> : <PanelLeftClose className="h-5.5 w-5.5" />}
@@ -89,8 +108,19 @@ export function Sidebar({ collapsed, onToggle, onOpenSettings }: SidebarProps) {
             collapsed ? 'justify-center' : 'px-3.5',
           )}
         >
-          <Settings className="h-5.5 w-5.5 shrink-0" />
-          {!collapsed && <span className="truncate">{t('nav.settings')}</span>}
+          <span className="relative shrink-0">
+            <Settings className="h-5.5 w-5.5" />
+            {collapsed && updateAvailable && (
+              <span
+                className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-success ring-2 ring-sidebar"
+                aria-hidden="true"
+              />
+            )}
+          </span>
+          {!collapsed && <span className="flex-1 truncate text-left">{t('nav.settings')}</span>}
+          {!collapsed && updateAvailable && (
+            <span className="h-2 w-2 shrink-0 rounded-full bg-success" aria-hidden="true" />
+          )}
           <Tooltip label={t('nav.settings')} show={collapsed} />
         </button>
       </div>

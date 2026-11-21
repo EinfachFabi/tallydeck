@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Database,
   Download,
+  Info,
   LayoutList,
   LoaderCircle,
   Moon,
@@ -15,10 +16,11 @@ import {
   Rss,
   SlidersHorizontal,
   Sun,
+  Tags,
   Upload,
   X,
 } from 'lucide-react';
-import type { FeedType, FullBackupPayload, PollIntervalMinutes, ServerSettings } from '../types';
+import type { FeedType, FullBackupPayload, PollIntervalMinutes, ServerSettings, VersionInfo } from '../types';
 import { api } from '../api';
 import { useI18n } from '../i18n/I18nContext';
 import {
@@ -38,22 +40,36 @@ import {
   type ViewDensity,
 } from '../context/SettingsContext';
 import { cn, errorText } from '../utils/format';
+import { InfoTab } from './InfoTab';
+import { ManageFeedsTab } from './ManageFeedsTab';
 import { YouTubeIcon } from './YouTubeIcon';
+
+export type SettingsTab = 'appearance' | 'manage' | 'feeds' | 'sync' | 'backup' | 'info';
 
 interface SettingsModalProps {
   open: boolean;
+  initialTab?: SettingsTab;
+  activeFeedType?: FeedType;
+  versionInfo: VersionInfo | null;
+  onVersionChange: (info: VersionInfo) => void;
   onClose: () => void;
   onImported: () => void;
 }
-
-type SettingsTab = 'appearance' | 'feeds' | 'sync' | 'backup';
 
 const INBOX_PRESETS = [25, 50, 100, 200, 500] as const;
 const DAYS_PRESETS = [1, 3, 7, 14, 30] as const;
 const POLL_OPTIONS: readonly PollIntervalMinutes[] = [0, 5, 15, 30, 60];
 const AUTO_ARCHIVE_PRESETS = [7, 14, 30, 60, 90] as const;
 
-export function SettingsModal({ open, onClose, onImported }: SettingsModalProps) {
+export function SettingsModal({
+  open,
+  initialTab = 'appearance',
+  activeFeedType = 'youtube',
+  versionInfo,
+  onVersionChange,
+  onClose,
+  onImported,
+}: SettingsModalProps) {
   const { t } = useI18n();
   const {
     colorMode,
@@ -68,7 +84,7 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
     setCompletedDays,
   } = useSettings();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   // Server settings state (poll interval + auto-archive unread items)
   const [serverSettings, setServerSettings] = useState<ServerSettings>({
@@ -89,6 +105,7 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
 
   useEffect(() => {
     if (!open) return;
+    setActiveTab(initialTab);
     setStatusMessage(null);
     api
       .getSettings()
@@ -96,7 +113,10 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
       .catch(() => {
         /* ignore if offline */
       });
+  }, [open, initialTab]);
 
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !importingType && !backupBusy) {
         onClose();
@@ -241,11 +261,18 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
     });
   }
 
-  const tabs: { id: SettingsTab; label: string; icon: typeof Palette }[] = [
+  const tabs: { id: SettingsTab; label: string; icon: typeof Palette; badge?: boolean }[] = [
     { id: 'appearance', label: t('settings.tabs.appearance'), icon: Palette },
+    { id: 'manage', label: t('settings.tabs.manage'), icon: Tags },
     { id: 'feeds', label: t('settings.tabs.feeds'), icon: SlidersHorizontal },
     { id: 'sync', label: t('settings.tabs.sync'), icon: RefreshCw },
     { id: 'backup', label: t('settings.tabs.backup'), icon: Database },
+    {
+      id: 'info',
+      label: t('settings.tabs.info'),
+      icon: Info,
+      badge: Boolean(versionInfo?.updateAvailable),
+    },
   ];
 
   return (
@@ -257,22 +284,19 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
-        className="flex h-[36rem] max-h-[90vh] w-full max-w-3xl animate-fade-in flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
+        className="flex h-[40rem] max-h-[90vh] w-full max-w-4xl animate-fade-in flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-6 py-4">
-          <div>
-            <h2 id="settings-modal-title" className="text-lg font-semibold">
-              {t('settings.title')}
-            </h2>
-            <p className="text-xs text-muted">{t('settings.subtitle')}</p>
-          </div>
+          <h2 id="settings-modal-title" className="text-lg font-semibold">
+            {t('settings.title')}
+          </h2>
           <button
             type="button"
             disabled={isBusy}
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted hover:bg-elevated hover:text-fg"
+            className="rounded-lg bg-danger p-1.5 text-white transition-colors hover:bg-danger/80 disabled:opacity-50"
             aria-label={t('settings.close')}
           >
             <X className="h-5 w-5" />
@@ -284,7 +308,7 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
           {/* Category Menu */}
           <nav
             aria-label={t('settings.title')}
-            className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-line bg-sidebar/60 p-3 sm:w-52 sm:flex-col sm:border-b-0 sm:border-r"
+            className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-line bg-sidebar/60 p-3 sm:w-56 sm:flex-col sm:border-b-0 sm:border-r"
           >
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -304,6 +328,7 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
                 >
                   <Icon className="h-4.5 w-4.5 shrink-0" />
                   <span className="truncate">{tab.label}</span>
+                  {tab.badge && <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-success" aria-hidden="true" />}
                 </button>
               );
             })}
@@ -451,7 +476,16 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
               </div>
             )}
 
-            {/* TAB 2: FEEDS & INBOX LIMITS */}
+            {/* TAB 2: MANAGE FEEDS & TOPICS */}
+            {activeTab === 'manage' && (
+              <ManageFeedsTab
+                initialSection={activeFeedType}
+                onChanged={onImported}
+                onStatus={setStatusMessage}
+              />
+            )}
+
+            {/* TAB 3: FEEDS & INBOX LIMITS */}
             {activeTab === 'feeds' && (
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">
@@ -828,11 +862,13 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
                 </div>
               </div>
             )}
+            {/* TAB 6: INFO & UPDATES */}
+            {activeTab === 'info' && <InfoTab versionInfo={versionInfo} onVersionChange={onVersionChange} />}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line bg-canvas/40 px-6 py-3.5">
+        <div className="flex shrink-0 items-center gap-3 border-t border-line bg-canvas/40 px-6 py-3.5">
           <button
             type="button"
             disabled={isBusy}
@@ -841,14 +877,6 @@ export function SettingsModal({ open, onClose, onImported }: SettingsModalProps)
           >
             <RotateCcw className="h-3.5 w-3.5" />
             <span>{t('settings.resetDefaults')}</span>
-          </button>
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={onClose}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-canvas transition-colors hover:bg-accent-strong"
-          >
-            {t('settings.close')}
           </button>
         </div>
       </div>

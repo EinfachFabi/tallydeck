@@ -8,6 +8,8 @@ import type { FeedService } from './feedService.ts';
 import { AppError } from './errors.ts';
 import { buildOpml } from './opml.ts';
 import * as repo from './repository.ts';
+import { config } from './config.ts';
+import { createVersionService, type VersionService } from './versionService.ts';
 
 export interface AppOptions {
   db: DatabaseSync;
@@ -15,9 +17,9 @@ export interface AppOptions {
   staticDir?: string;
   pollIntervalMinutes?: number;
   logger?: boolean;
+  /** Update check service; defaults to a disabled checker (no outgoing requests, e.g. in tests). */
+  versionService?: VersionService;
 }
-
-const VERSION = '0.2.0';
 
 function parseType(value: unknown): FeedType {
   if (!isFeedType(value)) throw new AppError('invalid_type', 400, 'Parameter "type" must be "youtube" or "rss".');
@@ -44,6 +46,9 @@ function parseBool(value: unknown): boolean {
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const { db, feedService } = options;
+  const versionService =
+    options.versionService ??
+    createVersionService({ current: config.appVersion, repo: config.updateRepo, enabled: false });
   const app = Fastify({ logger: options.logger ?? false });
 
   app.setErrorHandler((err, request, reply) => {
@@ -61,10 +66,14 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     const syncState = feedService.getSyncState();
     return {
       status: 'ok',
-      version: VERSION,
+      version: versionService.current,
       ...syncState,
     };
   });
+
+  app.get('/api/version', async () => versionService.get());
+
+  app.post('/api/version/check', async () => versionService.refresh());
 
   app.get('/api/settings', async () => ({
     settings: repo.getServerSettings(db, options.pollIntervalMinutes ?? 15),
@@ -141,6 +150,34 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     const id = parseId((request.params as Record<string, unknown>).id);
     if (!repo.deleteFeed(db, id)) throw new AppError('feed_not_found', 404, 'Feed not found.');
     return reply.status(204).send();
+  });
+
+  // ---------- Topics ----------
+
+  app.get('/api/topics', async () => ({ topics: repo.listTopics(db) }));
+
+  app.post('/api/topics', async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const topics = repo.createTopic(db, body.name, body.color);
+    if (!topics) throw new AppError('invalid_topic', 400, 'Please provide a topic name.');
+    return reply.status(201).send({ topics });
+  });
+
+  app.patch('/api/topics/:name', async (request) => {
+    const name = String((request.params as Record<string, unknown>).name ?? '');
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    if (body.newName !== undefined && !repo.normalizeCategory(body.newName)) {
+      throw new AppError('invalid_topic', 400, 'Please provide a topic name.');
+    }
+    const topics = repo.updateTopic(db, name, { newName: body.newName, color: body.color });
+    if (!topics) throw new AppError('topic_not_found', 404, 'Topic not found.');
+    return { topics };
+  });
+
+  app.delete('/api/topics/:name', async (request) => {
+    const name = String((request.params as Record<string, unknown>).name ?? '');
+    if (!repo.deleteTopic(db, name)) throw new AppError('topic_not_found', 404, 'Topic not found.');
+    return { topics: repo.listTopics(db) };
   });
 
   app.post('/api/feeds/sync', async (request) => {

@@ -5,6 +5,7 @@ import { openDatabase, type DatabaseSync } from '../db.ts';
 import { DAY_MS } from '../repository.ts';
 import { createFeedService } from '../feedService.ts';
 import { buildApp } from '../app.ts';
+import { compareVersions, createVersionService } from '../versionService.ts';
 import type { FetchText } from '../http.ts';
 import { CHANNEL_ID, YOUTUBE_CHANNEL_HTML, rssFeedXml, youtubeFeedXml } from './fixtures.ts';
 
@@ -384,5 +385,226 @@ test('exports and restores a full database backup including completion history a
   assert.equal(afterRestore.uncompleted.length, 2);
   assert.equal(afterRestore.completed.length, 1);
   assert.equal(afterRestore.stats.totalCompleted, 1);
+});
+
+test('compareVersions and /api/version cache GitHub releases for 12h, retry errors after 1h, and support manual check', async () => {
+  assert.ok(compareVersions('0.3.0', '0.2.0') > 0);
+  assert.ok(compareVersions('v1.10.0', '1.2.9') > 0);
+  assert.equal(compareVersions('v0.2.0', '0.2.0'), 0);
+  assert.ok(compareVersions('0.1.9', '0.2.0') < 0);
+
+  let clock = 1_000_000;
+  let calls = 0;
+  let shouldFail = false;
+  let remoteVersion = '0.3.0';
+
+  const versionService = createVersionService({
+    current: '0.2.0',
+    repo: 'EinfachFabi/tallydeck',
+    enabled: true,
+    now: () => clock,
+    fetchLatest: async () => {
+      calls += 1;
+      if (shouldFail) throw new Error('network down');
+      return {
+        version: remoteVersion,
+        url: `https://github.com/EinfachFabi/tallydeck/releases/tag/v${remoteVersion}`,
+      };
+    },
+  });
+
+  const versionApp = await buildApp({
+    db,
+    feedService: createFeedService(db, fetchText),
+    versionService,
+  });
+
+  const first = await versionApp.inject({ method: 'GET', url: '/api/version' });
+  assert.equal(first.statusCode, 200);
+  const body1 = first.json();
+  assert.equal(body1.current, '0.2.0');
+  assert.equal(body1.latest, '0.3.0');
+  assert.equal(body1.updateAvailable, true);
+  assert.equal(body1.dockerImage, 'ghcr.io/einfachfabi/tallydeck');
+  assert.equal(body1.releaseUrl, 'https://github.com/EinfachFabi/tallydeck/releases/tag/v0.3.0');
+  assert.equal(calls, 1);
+
+  // Within 12 hours, cached response is returned without another fetch.
+  clock += 6 * 60 * 60 * 1000;
+  const cached = await versionApp.inject({ method: 'GET', url: '/api/version' });
+  assert.equal(cached.json().latest, '0.3.0');
+  assert.equal(calls, 1);
+
+  // After 12 hours, cache expires and fetches again.
+  clock += 6 * 60 * 60 * 1000;
+  remoteVersion = '0.2.0';
+  const expired = await versionApp.inject({ method: 'GET', url: '/api/version' });
+  assert.equal(expired.json().latest, '0.2.0');
+  assert.equal(expired.json().updateAvailable, false);
+  assert.equal(calls, 2);
+
+  // POST /api/version/check forces an immediate check.
+  remoteVersion = '0.4.0';
+  const manual = await versionApp.inject({ method: 'POST', url: '/api/version/check' });
+  assert.equal(manual.statusCode, 200);
+  assert.equal(manual.json().latest, '0.4.0');
+  assert.equal(manual.json().updateAvailable, true);
+  assert.equal(calls, 3);
+
+  // Errors are recorded and retried after 1 hour.
+  shouldFail = true;
+  const failed = await versionApp.inject({ method: 'POST', url: '/api/version/check' });
+  assert.match(failed.json().error, /network down/);
+  assert.equal(calls, 4);
+
+  clock += 30 * 60 * 1000;
+  await versionApp.inject({ method: 'GET', url: '/api/version' });
+  assert.equal(calls, 4, 'still in 1h error backoff');
+
+  clock += 30 * 60 * 1000;
+  shouldFail = false;
+  remoteVersion = '0.5.0';
+  const recovered = await versionApp.inject({ method: 'GET', url: '/api/version' });
+  assert.equal(recovered.json().error, null);
+  assert.equal(recovered.json().latest, '0.5.0');
+  assert.equal(calls, 5);
+
+  // Disabled update check never invokes fetchLatest.
+  let disabledCalls = 0;
+  const disabledApp = await buildApp({
+    db,
+    feedService: createFeedService(db, fetchText),
+    versionService: createVersionService({
+      current: '0.2.0',
+      repo: 'EinfachFabi/tallydeck',
+      enabled: false,
+      fetchLatest: async () => {
+        disabledCalls += 1;
+        return null;
+      },
+    }),
+  });
+  const disabledRes = await disabledApp.inject({ method: 'GET', url: '/api/version' });
+  assert.equal(disabledRes.json().checkEnabled, false);
+  assert.equal(disabledRes.json().updateAvailable, false);
+  assert.equal(disabledCalls, 0);
+});
+
+test('supports topic CRUD (colors, rename, merge, delete) and preserves topic colors in full backups', async () => {
+  // Create empty topic with explicit color
+  const createRes = await app.inject({
+    method: 'POST',
+    url: '/api/topics',
+    payload: { name: 'Homelab', color: 2 },
+  });
+  assert.equal(createRes.statusCode, 201);
+  assert.deepEqual(createRes.json().topics, [{ name: 'Homelab', color: 2, youtubeCount: 0, rssCount: 0 }]);
+
+  // Invalid empty topic rejected
+  const invalidRes = await app.inject({ method: 'POST', url: '/api/topics', payload: { name: '   ' } });
+  assert.equal(invalidRes.statusCode, 400);
+  assert.equal(invalidRes.json().error, 'invalid_topic');
+
+  // Add YouTube + RSS feeds with categories
+  const ytRes = await app.inject({
+    method: 'POST',
+    url: '/api/feeds',
+    payload: { type: 'youtube', url: '@fireship', category: 'Tech' },
+  });
+  assert.equal(ytRes.statusCode, 201);
+  const rssRes = await app.inject({
+    method: 'POST',
+    url: '/api/feeds',
+    payload: { type: 'rss', url: RSS_FEED, category: 'Homelab' },
+  });
+  assert.equal(rssRes.statusCode, 201);
+
+  const listed = (await app.inject({ method: 'GET', url: '/api/topics' })).json().topics;
+  assert.deepEqual(listed, [
+    { name: 'Homelab', color: 2, youtubeCount: 0, rssCount: 1 },
+    { name: 'Tech', color: null, youtubeCount: 1, rssCount: 0 },
+  ]);
+
+  // Update color of Tech and rename it
+  const patchTech = await app.inject({
+    method: 'PATCH',
+    url: '/api/topics/Tech',
+    payload: { newName: 'Dev', color: 4 },
+  });
+  assert.equal(patchTech.statusCode, 200);
+  assert.deepEqual(patchTech.json().topics, [
+    { name: 'Dev', color: 4, youtubeCount: 1, rssCount: 0 },
+    { name: 'Homelab', color: 2, youtubeCount: 0, rssCount: 1 },
+  ]);
+
+  // Merging Dev into Homelab moves the YouTube feed to Homelab
+  const mergeRes = await app.inject({
+    method: 'PATCH',
+    url: '/api/topics/Dev',
+    payload: { newName: 'Homelab' },
+  });
+  assert.equal(mergeRes.statusCode, 200);
+  assert.deepEqual(mergeRes.json().topics, [{ name: 'Homelab', color: 2, youtubeCount: 1, rssCount: 1 }]);
+
+  // Also add an empty topic with preset color 14 and set custom hex colors before exporting backup
+  await app.inject({ method: 'POST', url: '/api/topics', payload: { name: 'Science', color: 14 } });
+  const customHexRes = await app.inject({
+    method: 'PATCH',
+    url: '/api/topics/Homelab',
+    payload: { color: '#FF6B6B' },
+  });
+  assert.equal(customHexRes.statusCode, 200);
+  assert.deepEqual(customHexRes.json().topics, [
+    { name: 'Homelab', color: '#ff6b6b', youtubeCount: 1, rssCount: 1 },
+    { name: 'Science', color: 14, youtubeCount: 0, rssCount: 0 },
+  ]);
+
+  // Shorthand #rgb expands to #rrggbb; invalid colors normalize to null
+  const shortHexRes = await app.inject({
+    method: 'PATCH',
+    url: '/api/topics/Science',
+    payload: { color: '#abc' },
+  });
+  assert.equal(shortHexRes.json().topics.find((t: { name: string }) => t.name === 'Science').color, '#aabbcc');
+
+  const invalidColorRes = await app.inject({
+    method: 'POST',
+    url: '/api/topics',
+    payload: { name: 'Gaming', color: 'not-a-color' },
+  });
+  assert.equal(invalidColorRes.json().topics.find((t: { name: string }) => t.name === 'Gaming').color, null);
+
+  const outOfRangeRes = await app.inject({
+    method: 'PATCH',
+    url: '/api/topics/Gaming',
+    payload: { color: 99 },
+  });
+  assert.equal(outOfRangeRes.json().topics.find((t: { name: string }) => t.name === 'Gaming').color, null);
+
+  // Restore Science back to preset 14 before backup round-trip
+  await app.inject({ method: 'PATCH', url: '/api/topics/Science', payload: { color: 14 } });
+  await app.inject({ method: 'DELETE', url: '/api/topics/Gaming' });
+
+  const backup = (await app.inject({ method: 'GET', url: '/api/backup' })).json();
+  assert.ok(Array.isArray(backup.topics));
+
+  // Delete Homelab -> feeds stay, category becomes null
+  const delRes = await app.inject({ method: 'DELETE', url: '/api/topics/Homelab' });
+  assert.equal(delRes.statusCode, 200);
+  assert.deepEqual(delRes.json().topics, [{ name: 'Science', color: 14, youtubeCount: 0, rssCount: 0 }]);
+  const ytFeeds = (await app.inject({ method: 'GET', url: '/api/feeds?type=youtube' })).json().feeds;
+  assert.equal(ytFeeds.length, 1);
+  assert.equal(ytFeeds[0].category, null);
+
+  // Restore into a fresh DB preserves custom hex colors, preset indices & empty topics
+  const freshDb = openDatabase(':memory:');
+  const freshApp = await buildApp({ db: freshDb, feedService: createFeedService(freshDb, fetchText) });
+  const restoreRes = await freshApp.inject({ method: 'POST', url: '/api/backup', payload: backup });
+  assert.equal(restoreRes.statusCode, 200);
+  const restoredTopics = (await freshApp.inject({ method: 'GET', url: '/api/topics' })).json().topics;
+  assert.deepEqual(restoredTopics, [
+    { name: 'Homelab', color: '#ff6b6b', youtubeCount: 1, rssCount: 1 },
+    { name: 'Science', color: 14, youtubeCount: 0, rssCount: 0 },
+  ]);
 });
 

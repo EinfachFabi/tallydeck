@@ -229,6 +229,186 @@ export function deleteFeed(db: DatabaseSync, id: number): boolean {
   return Number(result.changes) > 0;
 }
 
+// ---------- Topics ----------
+//
+// Topics are the feeds' `category` values. Additionally a small registry in the settings table
+// stores topic colors and topics that currently have no feeds (created in the settings menu).
+
+/** Number of preset topic colors (must match the client palette in src/utils/topicColor.ts). */
+export const TOPIC_COLOR_COUNT = 16;
+
+/** Palette index (0..15), custom #rrggbb hex color, or null = automatic color. */
+export type TopicColor = number | string | null;
+
+export interface TopicRecord {
+  name: string;
+  color: TopicColor;
+}
+
+export interface TopicDto extends TopicRecord {
+  youtubeCount: number;
+  rssCount: number;
+}
+
+const topicKey = (name: string) => name.trim().toLocaleLowerCase();
+
+export function normalizeTopicColor(value: unknown): TopicColor {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed.toLowerCase();
+    if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+      const [, r, g, b] = trimmed.toLowerCase();
+      return `#${r}${r}${g}${g}${b}${b}`;
+    }
+  }
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 && n < TOPIC_COLOR_COUNT ? n : null;
+}
+
+export function readTopicRegistry(db: DatabaseSync): TopicRecord[] {
+  const raw = getSettingValue(db, 'topics');
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    const seen = new Set<string>();
+    const result: TopicRecord[] = [];
+    for (const entry of parsed) {
+      const name = normalizeCategory((entry as TopicRecord)?.name);
+      if (!name || seen.has(topicKey(name))) continue;
+      seen.add(topicKey(name));
+      result.push({ name, color: normalizeTopicColor((entry as TopicRecord).color) });
+    }
+    return result;
+  } catch {
+    return [];
+  }
+}
+
+function writeTopicRegistry(db: DatabaseSync, topics: TopicRecord[]): void {
+  setSettingValue(db, 'topics', JSON.stringify(topics));
+}
+
+export function listTopics(db: DatabaseSync): TopicDto[] {
+  const map = new Map<string, TopicDto>();
+  for (const t of readTopicRegistry(db)) {
+    map.set(topicKey(t.name), { ...t, youtubeCount: 0, rssCount: 0 });
+  }
+  const rows = db
+    .prepare('SELECT category, type, COUNT(*) AS c FROM feeds WHERE category IS NOT NULL GROUP BY category, type')
+    .all() as Row[];
+  for (const row of rows) {
+    const name = String(row.category);
+    const key = topicKey(name);
+    let topic = map.get(key);
+    if (!topic) {
+      topic = { name, color: null, youtubeCount: 0, rssCount: 0 };
+      map.set(key, topic);
+    }
+    if (row.type === 'youtube') topic.youtubeCount += Number(row.c);
+    else topic.rssCount += Number(row.c);
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+}
+
+function feedIdsWithTopic(db: DatabaseSync, name: string): number[] {
+  const key = topicKey(name);
+  const rows = db.prepare('SELECT id, category FROM feeds WHERE category IS NOT NULL').all() as Row[];
+  return rows.filter((r) => topicKey(String(r.category)) === key).map((r) => Number(r.id));
+}
+
+function topicExists(db: DatabaseSync, name: string): boolean {
+  const key = topicKey(name);
+  return readTopicRegistry(db).some((t) => topicKey(t.name) === key) || feedIdsWithTopic(db, name).length > 0;
+}
+
+/** Creates a topic (or updates its color if it already exists). Returns null for an empty name. */
+export function createTopic(db: DatabaseSync, rawName: unknown, color?: unknown): TopicDto[] | null {
+  const name = normalizeCategory(rawName);
+  if (!name) return null;
+  const registry = readTopicRegistry(db);
+  const existing = registry.find((t) => topicKey(t.name) === topicKey(name));
+  if (existing) {
+    if (color !== undefined) existing.color = normalizeTopicColor(color);
+  } else {
+    registry.push({ name, color: normalizeTopicColor(color) });
+  }
+  writeTopicRegistry(db, registry);
+  return listTopics(db);
+}
+
+/**
+ * Renames a topic (all feeds follow; renaming onto an existing topic merges both) and/or sets its color.
+ * Returns null if the topic does not exist.
+ */
+export function updateTopic(
+  db: DatabaseSync,
+  name: string,
+  patch: { newName?: unknown; color?: unknown },
+): TopicDto[] | null {
+  if (!topicExists(db, name)) return null;
+  const key = topicKey(name);
+  let registry = readTopicRegistry(db);
+  const current = registry.find((t) => topicKey(t.name) === key) ?? { name, color: null };
+  if (patch.color !== undefined) current.color = normalizeTopicColor(patch.color);
+
+  const newName = patch.newName === undefined ? null : normalizeCategory(patch.newName);
+  if (newName && newName !== current.name) {
+    db.exec('BEGIN');
+    try {
+      const stmt = db.prepare('UPDATE feeds SET category = ? WHERE id = ?');
+      for (const id of feedIdsWithTopic(db, name)) stmt.run(newName, id);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+    registry = registry.filter((t) => topicKey(t.name) !== key);
+    const target = registry.find((t) => topicKey(t.name) === topicKey(newName));
+    if (target) {
+      target.name = newName;
+      if (target.color === null || patch.color !== undefined) target.color = current.color;
+    } else {
+      registry.push({ name: newName, color: current.color });
+    }
+  } else if (!registry.includes(current)) {
+    registry.push(current);
+  }
+
+  writeTopicRegistry(db, registry);
+  return listTopics(db);
+}
+
+/** Deletes a topic. Feeds are kept but lose their topic. Returns false if the topic does not exist. */
+export function deleteTopic(db: DatabaseSync, name: string): boolean {
+  if (!topicExists(db, name)) return false;
+  const stmt = db.prepare('UPDATE feeds SET category = NULL WHERE id = ?');
+  for (const id of feedIdsWithTopic(db, name)) stmt.run(id);
+  writeTopicRegistry(
+    db,
+    readTopicRegistry(db).filter((t) => topicKey(t.name) !== topicKey(name)),
+  );
+  return true;
+}
+
+function mergeTopicRegistry(db: DatabaseSync, incoming: unknown): void {
+  if (!Array.isArray(incoming)) return;
+  const registry = readTopicRegistry(db);
+  for (const entry of incoming) {
+    const name = normalizeCategory((entry as TopicRecord)?.name);
+    if (!name) continue;
+    const color = normalizeTopicColor((entry as TopicRecord).color);
+    const existing = registry.find((t) => topicKey(t.name) === topicKey(name));
+    if (existing) {
+      if (color !== null) existing.color = color;
+    } else {
+      registry.push({ name, color });
+    }
+  }
+  writeTopicRegistry(db, registry);
+}
+
 export function updateFeedFetchState(db: DatabaseSync, id: number, error: string | null, now = Date.now()): void {
   db.prepare('UPDATE feeds SET last_fetched_at = ?, last_error = ? WHERE id = ?').run(now, error, id);
 }
@@ -548,6 +728,8 @@ export interface FullBackupPayload {
   exportedAt: number;
   serverSettings?: Partial<ServerSettingsDto>;
   clientSettings?: Record<string, unknown>;
+  /** Topic colors and topics without feeds (optional, added in 0.3). */
+  topics?: TopicRecord[];
   feeds: BackupFeedRecord[];
   items: BackupItemRecord[];
 }
@@ -605,6 +787,7 @@ export function exportFullBackup(db: DatabaseSync, defaultPollInterval = 15, now
     version: 1,
     exportedAt: now,
     serverSettings: getServerSettings(db, defaultPollInterval),
+    topics: readTopicRegistry(db),
     feeds,
     items,
   };
@@ -715,6 +898,7 @@ export function restoreFullBackup(
     if (payload.serverSettings) {
       updateServerSettings(db, payload.serverSettings, defaultPollInterval);
     }
+    mergeTopicRegistry(db, payload.topics);
 
     db.exec('COMMIT');
   } catch (err) {

@@ -9,6 +9,9 @@ import type {
   RestoreBackupResult,
   ServerSettings,
   SyncResult,
+  Topic,
+  TopicColor,
+  VersionInfo,
 } from './types';
 
 export const UNCATEGORIZED_TOKEN = '__uncategorized__';
@@ -53,6 +56,21 @@ function qs(params: Record<string, string | number | boolean | undefined | null>
 
 export const api = {
   health: () => request<Health>('GET', '/api/health'),
+
+  version: () => request<VersionInfo>('GET', '/api/version'),
+
+  checkVersion: () => request<VersionInfo>('POST', '/api/version/check'),
+
+  getTopics: () => request<{ topics: Topic[] }>('GET', '/api/topics').then((r) => r.topics),
+
+  createTopic: (name: string, color?: TopicColor) =>
+    request<{ topics: Topic[] }>('POST', '/api/topics', { name, color }).then((r) => r.topics),
+
+  updateTopic: (name: string, patch: { newName?: string; color?: TopicColor }) =>
+    request<{ topics: Topic[] }>('PATCH', `/api/topics/${encodeURIComponent(name)}`, patch).then((r) => r.topics),
+
+  deleteTopic: (name: string) =>
+    request<{ topics: Topic[] }>('DELETE', `/api/topics/${encodeURIComponent(name)}`).then((r) => r.topics),
 
   getSettings: () => request<{ settings: ServerSettings }>('GET', '/api/settings').then((r) => r.settings),
 

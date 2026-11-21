@@ -3,8 +3,8 @@ import { Check, CheckCheck, ExternalLink, Inbox, PartyPopper, RefreshCw, Rss, Un
 import type { FeedType, Item } from '../types';
 import { useI18n } from '../i18n/I18nContext';
 import { useSettings, type ViewDensity } from '../context/SettingsContext';
+import { useTopics } from '../context/TopicsContext';
 import { cn, formatDateTime, formatRelative } from '../utils/format';
-import { getTopicColor } from '../utils/topicColor';
 import { YouTubeIcon } from './YouTubeIcon';
 
 interface SplitFeedTablesProps {
@@ -71,6 +71,53 @@ function Thumbnail({ item, type, done }: { item: Item; type: FeedType; done?: bo
   );
 }
 
+function rssFaviconUrl(rawUrl: string): string | null {
+  try {
+    const u = new URL(rawUrl);
+    if (u.protocol === 'http:' || u.protocol === 'https:') {
+      return `${u.origin}/favicon.ico`;
+    }
+  } catch {
+    /* ignore invalid URL */
+  }
+  return null;
+}
+
+function ItemFeedAvatar({ item, type, done }: { item: Item; type: FeedType; done?: boolean }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const primary = item.feedIconUrl;
+  const fallback = type === 'rss' ? rssFaviconUrl(item.url) : null;
+  const src = primary && failedSrc !== primary ? primary : fallback && failedSrc !== fallback ? fallback : null;
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailedSrc(src)}
+        className={cn(
+          'h-4 w-4 shrink-0 rounded-full bg-elevated object-cover',
+          done && 'grayscale opacity-60',
+        )}
+      />
+    );
+  }
+
+  const Icon = type === 'youtube' ? YouTubeIcon : Rss;
+  return (
+    <span
+      className={cn(
+        'flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-elevated',
+        done && 'grayscale opacity-60',
+      )}
+    >
+      <Icon className={cn('h-2.5 w-2.5', type === 'youtube' ? 'text-youtube' : 'text-warning')} />
+    </span>
+  );
+}
+
 function ItemCell({
   item,
   type,
@@ -83,6 +130,7 @@ function ItemCell({
   density: ViewDensity;
 }) {
   const { t, locale } = useI18n();
+  const { colorOf } = useTopics();
   const compact = density === 'compact';
 
   if (compact) {
@@ -93,8 +141,9 @@ function ItemCell({
             <span
               className={cn(
                 'shrink-0 rounded px-1.5 py-0.25 text-[10px] font-semibold',
-                getTopicColor(item.feedCategory).badge,
+                colorOf(item.feedCategory).badge,
               )}
+              style={colorOf(item.feedCategory).badgeStyle}
             >
               {item.feedCategory}
             </span>
@@ -116,7 +165,10 @@ function ItemCell({
             {item.title}
           </a>
         </div>
-        <span className="max-w-36 shrink-0 truncate text-xs text-muted">{item.feedTitle}</span>
+        <span className="flex max-w-40 shrink-0 items-center gap-1.5 text-xs text-muted">
+          <ItemFeedAvatar item={item} type={type} done={done} />
+          <span className="truncate">{item.feedTitle}</span>
+        </span>
       </div>
     );
   }
@@ -141,12 +193,14 @@ function ItemCell({
             <span
               className={cn(
                 'shrink-0 rounded px-1.5 py-0.25 text-[10px] font-semibold',
-                getTopicColor(item.feedCategory).badge,
+                colorOf(item.feedCategory).badge,
               )}
+              style={colorOf(item.feedCategory).badgeStyle}
             >
               {item.feedCategory}
             </span>
           )}
+          <ItemFeedAvatar item={item} type={type} done={done} />
           <span className="truncate font-medium">{item.feedTitle}</span>
           {item.author && item.author !== item.feedTitle && <span className="truncate">· {item.author}</span>}
           {done && item.publishedAt && (

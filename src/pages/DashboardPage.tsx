@@ -4,10 +4,11 @@ import type { Feed, FeedType, Item, ItemsResponse } from '../types';
 import { api, UNCATEGORIZED_TOKEN } from '../api';
 import { useI18n } from '../i18n/I18nContext';
 import { useSettings } from '../context/SettingsContext';
+import { useTopics } from '../context/TopicsContext';
 import { errorText } from '../utils/format';
 import { useLocalStorage } from '../utils/useLocalStorage';
 import { StatsBar } from '../components/StatsBar';
-import { ChannelStrip } from '../components/ChannelStrip';
+import { FilterBar } from '../components/FilterBar';
 import { SplitFeedTables } from '../components/SplitFeedTables';
 
 const AUTO_REFRESH_MS = 60_000;
@@ -17,11 +18,13 @@ interface DashboardPageProps {
   type: FeedType;
   /** Changes when a sync happened somewhere -> reload. */
   refreshKey: number;
+  onManageFeeds: () => void;
 }
 
-export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
+export function DashboardPage({ type, refreshKey, onManageFeeds }: DashboardPageProps) {
   const { t } = useI18n();
   const { inboxLimit, completedDays } = useSettings();
+  const { reload: reloadTopics } = useTopics();
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [data, setData] = useState<ItemsResponse | null>(null);
   const [selectedFeedId, setSelectedFeedId] = useState<number | null>(null);
@@ -141,37 +144,13 @@ export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
       try {
         const result = await api.addFeed(type, url, category);
         await load();
+        void reloadTopics();
         return t(`${type}.added`, { title: result.feed.title, count: result.added });
       } catch (err) {
         throw new Error(errorText(err, t));
       }
     },
-    [type, load, t],
-  );
-
-  const updateCategory = useCallback(
-    async (feed: Feed, category: string | null) => {
-      try {
-        await api.updateFeedCategory(feed.id, category);
-        await load();
-      } catch (err) {
-        setError(errorText(err, t));
-      }
-    },
-    [load, t],
-  );
-
-  const deleteFeed = useCallback(
-    async (feed: Feed) => {
-      try {
-        await api.deleteFeed(feed.id);
-        if (selectedFeedId === feed.id) setSelectedFeedId(null);
-      } catch (err) {
-        setError(errorText(err, t));
-      }
-      await load();
-    },
-    [selectedFeedId, load, t],
+    [type, load, reloadTopics, t],
   );
 
   const syncFeeds = useCallback(async () => {
@@ -204,7 +183,7 @@ export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
     <div className="mx-auto flex max-w-[1800px] flex-col gap-3.5 p-4 md:p-5 xl:h-full xl:overflow-hidden">
       <StatsBar type={type} stats={data?.stats ?? null} />
 
-      <ChannelStrip
+      <FilterBar
         type={type}
         feeds={feeds}
         selectedFeedId={selectedFeedId}
@@ -212,12 +191,11 @@ export function DashboardPage({ type, refreshKey }: DashboardPageProps) {
         selectedCategory={selectedCategory}
         onSelectCategory={setSelectedCategory}
         onAdd={addFeed}
-        onUpdateCategory={updateCategory}
-        onDelete={deleteFeed}
         hideShorts={hideShorts}
         onHideShortsChange={setHideShorts}
         search={search}
         onSearchChange={setSearch}
+        onManageFeeds={onManageFeeds}
       />
 
       {error && (

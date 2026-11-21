@@ -98,3 +98,26 @@ export interface Health {
   lastSyncAt: number | null;
   syncing: boolean;
 }
+
+/** Palette index (0..15), custom #rrggbb hex color, or null = automatic color. */
+export type TopicColor = number | string | null;
+
+export interface Topic {
+  name: string;
+  color: TopicColor;
+  youtubeCount: number;
+  rssCount: number;
+}
+
+export interface VersionInfo {
+  current: string;
+  latest: string | null;
+  updateAvailable: boolean;
+  releaseUrl: string | null;
+  releasesUrl: string;
+  repoUrl: string;
+  dockerImage: string;
+  checkEnabled: boolean;
+  checkedAt: number | null;
+  error: string | null;
+}

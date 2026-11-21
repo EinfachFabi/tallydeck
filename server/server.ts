@@ -7,6 +7,7 @@ import { openDatabase } from './db.ts';
 import { createFeedService } from './feedService.ts';
 import { defaultFetchText } from './http.ts';
 import { buildApp } from './app.ts';
+import { createVersionService } from './versionService.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -31,10 +32,15 @@ async function main() {
     staticDir: findStaticDir(),
     pollIntervalMinutes: config.pollIntervalMinutes,
     logger: true,
+    versionService: createVersionService({
+      current: config.appVersion,
+      repo: config.updateRepo,
+      enabled: config.updateCheck,
+    }),
   });
 
   await app.listen({ port: config.port, host: config.host });
-  app.log.info(`TallyDeck running on http://localhost:${config.port} (db: ${config.dbPath})`);
+  app.log.info(`TallyDeck v${config.appVersion} running on http://localhost:${config.port} (db: ${config.dbPath})`);
 
   const stopScheduler = feedService.startScheduler(config.pollIntervalMinutes);
   const activePoll = feedService.getSyncState().pollIntervalMinutes;

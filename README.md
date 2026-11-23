@@ -1,6 +1,15 @@
-# TallyDeck
+<h1 align="center">
+  <img src="static/favicon.svg" alt="Tallydeck Logo" width="32" height="32" align="absmiddle" /> Tallydeck
+</h1>
 
-**Your feeds, tallied.** A self-hosted inbox-zero dashboard for **YouTube channels** and **RSS/Atom news feeds**, built with a warm Monokai dark theme and full **Docker / Docker Compose** support on port `5555`.
+<p align="center">
+  <strong>Your feeds, tallied.</strong> A self-hosted inbox-zero dashboard for <strong>YouTube channels</strong> and <strong>RSS/Atom news feeds</strong>,<br />
+  built with a warm Monokai dark theme and full <strong>Docker / Docker Compose</strong> support on port <code>5555</code>.
+</p>
+
+<p align="center">
+  <img src=".github/screenshot.png" alt="Tallydeck Dashboard" width="100%" />
+</p>
 
 ---
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, Layers, Plus, Rss, Search, Settings2, X } from 'lucide-react';
 import type { Feed, FeedType } from '../types';
 import { UNCATEGORIZED_TOKEN } from '../api';
@@ -72,6 +72,12 @@ export function FilterBar(props: FilterBarProps) {
   const [addOpen, setAddOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [feedQuery, setFeedQuery] = useState('');
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2_000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const totalUnread = feeds.reduce((sum, f) => sum + f.unreadCount, 0);
 

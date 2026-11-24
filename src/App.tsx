@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { SettingsModal, type SettingsTab } from './components/SettingsModal';
 import { DashboardPage } from './pages/DashboardPage';
+import { TwitchPage } from './pages/TwitchPage';
 import { TopicsProvider } from './context/TopicsContext';
 import { api } from './api';
 import { useLocalStorage } from './utils/useLocalStorage';
@@ -21,7 +22,9 @@ export default function App() {
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   /** Incremented whenever data may have changed (manual, OPML import, or background sync) -> pages reload. */
   const [refreshKey, setRefreshKey] = useState(0);
+  const [twitchRefreshKey, setTwitchRefreshKey] = useState(0);
   const knownSyncAt = useRef<number | null>(null);
+  const knownTwitchSyncAt = useRef<number | null>(null);
 
   // Watch the server's background poller: when it finishes a sync, refresh the visible data.
   const checkHealth = useCallback(async () => {
@@ -31,6 +34,15 @@ export default function App() {
         setRefreshKey((k) => k + 1);
       }
       knownSyncAt.current = health.lastSyncAt ?? 0;
+
+      if (
+        health.lastTwitchSyncAt &&
+        knownTwitchSyncAt.current !== null &&
+        health.lastTwitchSyncAt !== knownTwitchSyncAt.current
+      ) {
+        setTwitchRefreshKey((k) => k + 1);
+      }
+      knownTwitchSyncAt.current = health.lastTwitchSyncAt ?? 0;
     } catch {
       /* server temporarily unavailable */
     }
@@ -69,7 +81,7 @@ export default function App() {
           <TopBar />
           <main className="flex-1 min-h-0 overflow-y-auto xl:overflow-hidden">
             <Routes>
-              <Route path="/" element={<Navigate to="/youtube" replace />} />
+              <Route path="/" element={<Navigate to="/rss" replace />} />
               <Route
                 path="/youtube"
                 element={
@@ -92,7 +104,8 @@ export default function App() {
                   />
                 }
               />
-              <Route path="*" element={<Navigate to="/youtube" replace />} />
+              <Route path="/twitch" element={<TwitchPage refreshKey={twitchRefreshKey} />} />
+              <Route path="*" element={<Navigate to="/rss" replace />} />
             </Routes>
           </main>
         </div>
@@ -103,7 +116,10 @@ export default function App() {
           versionInfo={versionInfo}
           onVersionChange={setVersionInfo}
           onClose={() => setSettingsTab(null)}
-          onImported={() => setRefreshKey((k) => k + 1)}
+          onImported={() => {
+            setRefreshKey((k) => k + 1);
+            setTwitchRefreshKey((k) => k + 1);
+          }}
         />
       </div>
     </TopicsProvider>

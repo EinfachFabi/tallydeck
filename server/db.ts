@@ -49,6 +49,14 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS twitch_channels (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  login        TEXT    NOT NULL UNIQUE,
+  display_name TEXT    NOT NULL,
+  avatar_url   TEXT,
+  created_at   INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_items_feed      ON items (feed_id);
 CREATE INDEX IF NOT EXISTS idx_items_completed ON items (is_completed, completed_at);
 CREATE INDEX IF NOT EXISTS idx_items_published ON items (published_at);

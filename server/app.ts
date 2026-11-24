@@ -10,12 +10,15 @@ import { buildOpml } from './opml.ts';
 import * as repo from './repository.ts';
 import { config } from './config.ts';
 import { createVersionService, type VersionService } from './versionService.ts';
+import { createTwitchService, type TwitchService } from './twitchService.ts';
 
 export interface AppOptions {
   db: DatabaseSync;
   feedService: FeedService;
+  twitchService?: TwitchService;
   staticDir?: string;
   pollIntervalMinutes?: number;
+  twitchPollIntervalMinutes?: number;
   logger?: boolean;
   /** Update check service; defaults to a disabled checker (no outgoing requests, e.g. in tests). */
   versionService?: VersionService;
@@ -46,6 +49,15 @@ function parseBool(value: unknown): boolean {
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const { db, feedService } = options;
+  const defaultPollInterval = options.pollIntervalMinutes ?? 15;
+  const defaultTwitchPollInterval = options.twitchPollIntervalMinutes ?? 15;
+  const twitchService =
+    options.twitchService ??
+    createTwitchService(db, {
+      clientId: config.twitchClientId,
+      clientSecret: config.twitchClientSecret,
+      defaultPollIntervalMinutes: defaultTwitchPollInterval,
+    });
   const versionService =
     options.versionService ??
     createVersionService({ current: config.appVersion, repo: config.updateRepo, enabled: false });
@@ -64,10 +76,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   app.get('/api/health', async () => {
     const syncState = feedService.getSyncState();
+    const twitchState = twitchService.getSyncState();
     return {
       status: 'ok',
       version: versionService.current,
       ...syncState,
+      lastTwitchSyncAt: twitchState.lastTwitchSyncAt,
+      twitchSyncing: twitchState.twitchSyncing,
     };
   });
 
@@ -76,7 +91,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   app.post('/api/version/check', async () => versionService.refresh());
 
   app.get('/api/settings', async () => ({
-    settings: repo.getServerSettings(db, options.pollIntervalMinutes ?? 15),
+    settings: repo.getServerSettings(db, defaultPollInterval, defaultTwitchPollInterval),
   }));
 
   app.patch('/api/settings', async (request) => {
@@ -88,6 +103,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
         throw new AppError('bad_request', 400, 'Invalid pollIntervalMinutes. Allowed: 0, 5, 15, 30, 60.');
       }
       patch.pollIntervalMinutes = n as repo.PollIntervalMinutes;
+    }
+    if (body.twitchPollIntervalMinutes !== undefined) {
+      const n = Number(body.twitchPollIntervalMinutes);
+      if (!(repo.VALID_TWITCH_POLL_INTERVALS as readonly number[]).includes(n)) {
+        throw new AppError('bad_request', 400, 'Invalid twitchPollIntervalMinutes. Allowed: 15, 30, 60, 120.');
+      }
+      patch.twitchPollIntervalMinutes = n as repo.TwitchPollIntervalMinutes;
     }
     if (body.autoArchiveEnabled !== undefined) {
       if (typeof body.autoArchiveEnabled !== 'boolean') {
@@ -103,21 +125,23 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       patch.autoArchiveDays = Math.round(days);
     }
 
-    const settings = repo.updateServerSettings(db, patch, options.pollIntervalMinutes ?? 15);
+    const settings = repo.updateServerSettings(db, patch, defaultPollInterval, defaultTwitchPollInterval);
     feedService.setPollInterval(settings.pollIntervalMinutes);
+    twitchService.setPollInterval(settings.twitchPollIntervalMinutes);
     const archived = settings.autoArchiveEnabled ? repo.archiveOldUncompleted(db, settings.autoArchiveDays) : 0;
     return { settings, archived };
   });
 
-  app.get('/api/backup', async () => repo.exportFullBackup(db, options.pollIntervalMinutes ?? 15));
+  app.get('/api/backup', async () => repo.exportFullBackup(db, defaultPollInterval));
 
   app.post('/api/backup', async (request) => {
     const body = (request.body ?? {}) as Partial<repo.FullBackupPayload>;
     if (body.app !== 'tallydeck' || !Array.isArray(body.feeds) || !Array.isArray(body.items)) {
       throw new AppError('invalid_backup', 400, 'Invalid TallyDeck backup file.');
     }
-    const result = repo.restoreFullBackup(db, body as repo.FullBackupPayload, options.pollIntervalMinutes ?? 15);
+    const result = repo.restoreFullBackup(db, body as repo.FullBackupPayload, defaultPollInterval);
     feedService.setPollInterval(result.serverSettings.pollIntervalMinutes);
+    twitchService.setPollInterval(result.serverSettings.twitchPollIntervalMinutes);
     return result;
   });
 
@@ -254,6 +278,57 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       hideShorts: parseBool(body.hideShorts),
     });
     return { updated };
+  });
+
+  // ---------- Twitch ----------
+
+  app.get('/api/twitch/streams', async () => twitchService.getStreams());
+
+  app.post('/api/twitch/channels', async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    if (typeof body.channel !== 'string' || !body.channel.trim()) {
+      throw new AppError('invalid_twitch_channel', 400, 'Please enter a Twitch channel name or URL.');
+    }
+    const channel = await twitchService.addChannel(body.channel);
+    return reply.status(201).send({ channel });
+  });
+
+  app.delete('/api/twitch/channels/:id', async (request, reply) => {
+    const id = parseId((request.params as Record<string, unknown>).id);
+    if (!twitchService.removeChannel(id)) {
+      throw new AppError('twitch_channel_not_found', 404, 'Twitch channel not found.');
+    }
+    return reply.status(204).send();
+  });
+
+  app.post('/api/twitch/sync', async () => twitchService.refresh());
+
+  app.get('/api/twitch/channels/export', async (_request, reply) => {
+    const channels = repo.listTwitchChannels(db).map((ch) => ({
+      login: ch.login,
+      displayName: ch.displayName,
+      avatarUrl: ch.avatarUrl,
+    }));
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `tallydeck-twitch-${date}.json`;
+    const payload = {
+      app: 'tallydeck-twitch',
+      version: 1,
+      exportedAt: Date.now(),
+      channels,
+    };
+    return reply
+      .header('Content-Type', 'application/json; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(JSON.stringify(payload, null, 2));
+  });
+
+  app.post('/api/twitch/channels/import', async (request) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    if (typeof body.content !== 'string' || !body.content.trim()) {
+      throw new AppError('invalid_twitch_import', 400, 'Please provide a valid Twitch channels file.');
+    }
+    return twitchService.importChannels(body.content);
   });
 
   app.all('/api/*', async () => {

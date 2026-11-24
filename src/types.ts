@@ -68,11 +68,44 @@ export interface OpmlImportResult {
 }
 
 export type PollIntervalMinutes = 0 | 5 | 15 | 30 | 60;
+export type TwitchPollIntervalMinutes = 15 | 30 | 60 | 120;
 
 export interface ServerSettings {
   pollIntervalMinutes: PollIntervalMinutes;
+  twitchPollIntervalMinutes: TwitchPollIntervalMinutes;
   autoArchiveEnabled: boolean;
   autoArchiveDays: number;
+}
+
+export interface TwitchStream {
+  id: number;
+  login: string;
+  displayName: string;
+  avatarUrl: string | null;
+  url: string;
+  isLive: boolean;
+  title: string | null;
+  gameName: string | null;
+  viewerCount: number | null;
+  startedAt: string | null;
+  thumbnailUrl: string | null;
+  createdAt: number;
+}
+
+export interface TwitchStreamsResponse {
+  channels: TwitchStream[];
+  mode: 'helix' | 'gql';
+  lastSyncedAt: number | null;
+  syncing: boolean;
+  lastError: string | null;
+  pollIntervalMinutes: TwitchPollIntervalMinutes;
+}
+
+export interface TwitchImportResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+  errors: { channel: string; error: string }[];
 }
 
 export interface FullBackupPayload {
@@ -97,6 +130,8 @@ export interface Health {
   pollIntervalMinutes: number | null;
   lastSyncAt: number | null;
   syncing: boolean;
+  lastTwitchSyncAt?: number | null;
+  twitchSyncing?: boolean;
 }
 
 /** Palette index (0..15), custom #rrggbb hex color, or null = automatic color. */

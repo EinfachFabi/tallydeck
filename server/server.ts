@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { config } from './config.ts';
 import { openDatabase } from './db.ts';
 import { createFeedService } from './feedService.ts';
+import { createTwitchService } from './twitchService.ts';
 import { defaultFetchText } from './http.ts';
 import { buildApp } from './app.ts';
 import { createVersionService } from './versionService.ts';
@@ -21,16 +22,25 @@ async function main() {
   const db = openDatabase(config.dbPath);
 
   let app: FastifyInstance | undefined;
-  const feedService = createFeedService(db, defaultFetchText, {
-    info: (msg) => app?.log.info(msg),
-    warn: (msg) => app?.log.warn(msg),
+  const logger = {
+    info: (msg: string) => app?.log.info(msg),
+    warn: (msg: string) => app?.log.warn(msg),
+  };
+  const feedService = createFeedService(db, defaultFetchText, logger);
+  const twitchService = createTwitchService(db, {
+    clientId: config.twitchClientId,
+    clientSecret: config.twitchClientSecret,
+    defaultPollIntervalMinutes: config.twitchPollIntervalMinutes,
+    logger,
   });
 
   app = await buildApp({
     db,
     feedService,
+    twitchService,
     staticDir: findStaticDir(),
     pollIntervalMinutes: config.pollIntervalMinutes,
+    twitchPollIntervalMinutes: config.twitchPollIntervalMinutes,
     logger: true,
     versionService: createVersionService({
       current: config.appVersion,
@@ -43,13 +53,19 @@ async function main() {
   app.log.info(`TallyDeck v${config.appVersion} running on http://localhost:${config.port} (db: ${config.dbPath})`);
 
   const stopScheduler = feedService.startScheduler(config.pollIntervalMinutes);
+  const stopTwitchScheduler = twitchService.startScheduler(config.twitchPollIntervalMinutes);
   const activePoll = feedService.getSyncState().pollIntervalMinutes;
+  const twitchState = twitchService.getSyncState();
   app.log.info(
     activePoll > 0 ? `Background sync every ${activePoll} minutes` : 'Background sync disabled (Off)',
+  );
+  app.log.info(
+    `Twitch background sync (${twitchState.mode.toUpperCase()}) every ${twitchState.twitchPollIntervalMinutes} minutes`,
   );
 
   const shutdown = async () => {
     stopScheduler();
+    stopTwitchScheduler();
     await app?.close();
     db.close();
     process.exit(0);

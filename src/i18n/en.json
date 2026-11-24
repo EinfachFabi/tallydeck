@@ -10,6 +10,7 @@
   "nav": {
     "youtube": "YouTube",
     "rss": "News",
+    "twitch": "Twitch",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
     "settings": "Settings",
@@ -32,6 +33,10 @@
     "rss": {
       "title": "News Feeds",
       "subtitle": "Latest articles from your RSS & Atom feeds"
+    },
+    "twitch": {
+      "title": "Twitch Streams",
+      "subtitle": "See which of your saved channels are currently live"
     }
   },
   "youtube": {
@@ -90,6 +95,29 @@
     "confirmDelete": "Are you sure you want to remove feed \"{title}\" and all its articles?",
     "syncButton": "Sync feeds"
   },
+  "twitch": {
+    "searchPlaceholder": "Search streamers, titles, or games…",
+    "onlyOnline": "Online only",
+    "allChannels": "All channels",
+    "addTitle": "Add Twitch Channel",
+    "addHint": "Enter a Twitch channel name or URL (e.g. gronkh or twitch.tv/gronkh).",
+    "addPlaceholder": "twitch.tv/gronkh",
+    "addButton": "Add channel",
+    "added": "Added \"{name}\"",
+    "refresh": "Refresh Twitch",
+    "liveCount": "{live} of {total} live",
+    "liveBadge": "LIVE",
+    "offlineSection": "Offline ({count})",
+    "offlineBadge": "Offline",
+    "noChannelsTitle": "No Twitch channels yet",
+    "noChannelsHint": "Add your favorite streamers by name or Twitch link to see who is currently live.",
+    "noneOnlineTitle": "Nobody is live right now",
+    "noneOnlineHint": "None of your {total} saved channels are streaming at the moment.",
+    "showAllButton": "Show all channels",
+    "deleteTitle": "Remove Twitch Channel",
+    "confirmDelete": "Are you sure you want to remove Twitch channel \"{name}\"?",
+    "removeChannel": "Remove channel"
+  },
   "settings": {
     "title": "Settings",
     "tabs": {
@@ -130,6 +158,8 @@
     "pollIntervalHint": "How often TallyDeck automatically checks subscribed channels and feeds for new items in the background.",
     "pollOff": "Off (Manual sync only)",
     "pollMinutes": "Every {minutes} min",
+    "twitchPollIntervalLabel": "Twitch polling interval",
+    "twitchPollIntervalHint": "How often TallyDeck checks the live status of your Twitch channels in the background (min. 15 min).",
     "autoArchiveLabel": "Auto-cleanup old unread items",
     "autoArchiveHint": "Automatically archive unread items older than X days so your inbox stays clean (newer items stay in your inbox; archived items do not count toward watched/read stats).",
     "autoArchiveToggle": "Automatically archive unread items older than",
@@ -147,6 +177,10 @@
     "rssOpml": "RSS / News Feeds (OPML)",
     "importOpml": "Import OPML",
     "exportOpml": "Export OPML",
+    "twitchBackupTitle": "Twitch Channels Import & Export",
+    "twitchBackupHint": "Export your saved Twitch channels as JSON or import a JSON or plain text file (one channel name or URL per line).",
+    "importTwitch": "Import channels",
+    "exportTwitch": "Export channels (.json)",
     "importing": "Importing…",
     "importResult": "Imported {imported} new, skipped {skipped} existing, {failed} failed.",
     "manage": {
@@ -238,6 +272,11 @@
     "feed_not_found": "Feed not found.",
     "item_not_found": "Item not found.",
     "youtube_channel_not_found": "Couldn't find a YouTube channel for this link. Try the channel page URL (e.g. youtube.com/@name).",
+    "invalid_twitch_channel": "Please enter a valid Twitch channel name or URL (e.g. gronkh or twitch.tv/gronkh).",
+    "twitch_channel_exists": "This Twitch channel has already been added.",
+    "twitch_channel_not_found": "This Twitch channel was not found.",
+    "twitch_fetch_failed": "Could not reach Twitch right now. Please try again later.",
+    "invalid_twitch_import": "No valid Twitch channels found in this file.",
     "not_a_feed": "No RSS or Atom feed found at this URL.",
     "fetch_failed": "The URL could not be loaded. Please check the link and try again.",
     "network": "Cannot reach the TallyDeck server.",

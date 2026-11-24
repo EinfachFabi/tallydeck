@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { Rss } from 'lucide-react';
 import { YouTubeIcon } from './components/YouTubeIcon';
+import { TwitchIcon } from './components/TwitchIcon';
 
 export interface NavItem {
   id: string;
@@ -17,6 +18,7 @@ export interface NavItem {
  * 3. add "nav.<id>" and "pages.<id>.title/subtitle" to the i18n files.
  */
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'youtube', path: '/youtube', labelKey: 'nav.youtube', icon: YouTubeIcon },
   { id: 'rss', path: '/rss', labelKey: 'nav.rss', icon: Rss },
+  { id: 'youtube', path: '/youtube', labelKey: 'nav.youtube', icon: YouTubeIcon },
+  { id: 'twitch', path: '/twitch', labelKey: 'nav.twitch', icon: TwitchIcon },
 ];

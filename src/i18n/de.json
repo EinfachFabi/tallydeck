@@ -10,6 +10,7 @@
   "nav": {
     "youtube": "YouTube",
     "rss": "News",
+    "twitch": "Twitch",
     "collapse": "Seitenleiste einklappen",
     "expand": "Seitenleiste ausklappen",
     "settings": "Einstellungen",
@@ -32,6 +33,10 @@
     "rss": {
       "title": "News-Feeds",
       "subtitle": "Neueste Artikel aus deinen RSS- & Atom-Feeds"
+    },
+    "twitch": {
+      "title": "Twitch-Streams",
+      "subtitle": "Wer deiner gespeicherten Kanäle gerade live ist"
     }
   },
   "youtube": {
@@ -90,6 +95,29 @@
     "confirmDelete": "Möchtest du den Feed \"{title}\" inklusive aller Artikel wirklich entfernen?",
     "syncButton": "Feeds aktualisieren"
   },
+  "twitch": {
+    "searchPlaceholder": "Streamer, Titel oder Spiel suchen…",
+    "onlyOnline": "Nur Online",
+    "allChannels": "Alle Kanäle",
+    "addTitle": "Twitch-Kanal hinzufügen",
+    "addHint": "Gib einfach den Twitch-Namen oder den Link ein (z. B. gronkh oder twitch.tv/gronkh).",
+    "addPlaceholder": "twitch.tv/gronkh",
+    "addButton": "Kanal hinzufügen",
+    "added": "\"{name}\" wurde hinzugefügt",
+    "refresh": "Twitch aktualisieren",
+    "liveCount": "{live} von {total} live",
+    "liveBadge": "LIVE",
+    "offlineSection": "Offline ({count})",
+    "offlineBadge": "Offline",
+    "noChannelsTitle": "Noch keine Twitch-Kanäle",
+    "noChannelsHint": "Füge deine Lieblings-Streamer per Name oder Twitch-Link hinzu, um sofort zu sehen, wer live ist.",
+    "noneOnlineTitle": "Gerade niemand live",
+    "noneOnlineHint": "Keiner deiner {total} gespeicherten Kanäle streamt aktuell.",
+    "showAllButton": "Alle Kanäle anzeigen",
+    "deleteTitle": "Twitch-Kanal entfernen",
+    "confirmDelete": "Möchtest du den Twitch-Kanal \"{name}\" wirklich entfernen?",
+    "removeChannel": "Kanal entfernen"
+  },
   "settings": {
     "title": "Einstellungen",
     "tabs": {
@@ -130,6 +158,8 @@
     "pollIntervalHint": "Wie oft TallyDeck abonnierte Kanäle und Feeds automatisch im Hintergrund aktualisiert.",
     "pollOff": "Aus (Nur manuell)",
     "pollMinutes": "Alle {minutes} Min.",
+    "twitchPollIntervalLabel": "Twitch-Abfrage-Intervall",
+    "twitchPollIntervalHint": "Wie oft TallyDeck den Live-Status deiner Twitch-Kanäle im Hintergrund prüft (mind. 15 Min.).",
     "autoArchiveLabel": "Auto-Cleanup für alte ungelesene Einträge",
     "autoArchiveHint": "Sehr alte ungelesene Videos und Artikel (älter als X Tage) automatisch aus der Inbox archivieren. Neuere Einträge bleiben in der Inbox und archivierte Einträge zählen nicht zur Gesehen/Gelesen-Statistik.",
     "autoArchiveToggle": "Ungelesene Einträge automatisch archivieren, wenn älter als",
@@ -147,6 +177,10 @@
     "rssOpml": "RSS- / News-Feeds (OPML)",
     "importOpml": "OPML importieren",
     "exportOpml": "OPML exportieren",
+    "twitchBackupTitle": "Twitch-Kanäle Import & Export",
+    "twitchBackupHint": "Exportiere deine gespeicherten Twitch-Kanäle als JSON oder importiere eine JSON- bzw. Textdatei (ein Kanalname oder Link pro Zeile).",
+    "importTwitch": "Kanäle importieren",
+    "exportTwitch": "Kanäle exportieren (.json)",
     "importing": "Importiere…",
     "importResult": "{imported} neu importiert, {skipped} bereits vorhanden, {failed} fehlgeschlagen.",
     "manage": {
@@ -238,6 +272,11 @@
     "feed_not_found": "Feed nicht gefunden.",
     "item_not_found": "Eintrag nicht gefunden.",
     "youtube_channel_not_found": "Zu diesem Link wurde kein YouTube-Kanal gefunden. Versuche die Kanal-URL (z. B. youtube.com/@name).",
+    "invalid_twitch_channel": "Bitte gib einen gültigen Twitch-Kanalnamen oder -Link ein (z. B. gronkh oder twitch.tv/gronkh).",
+    "twitch_channel_exists": "Dieser Twitch-Kanal wurde bereits hinzugefügt.",
+    "twitch_channel_not_found": "Dieser Twitch-Kanal wurde nicht gefunden.",
+    "twitch_fetch_failed": "Twitch konnte gerade nicht abgefragt werden. Bitte versuche es später erneut.",
+    "invalid_twitch_import": "In dieser Datei wurden keine gültigen Twitch-Kanäle gefunden.",
     "not_a_feed": "Unter dieser URL wurde kein RSS- oder Atom-Feed gefunden.",
     "fetch_failed": "Die URL konnte nicht geladen werden. Bitte prüfe den Link und versuche es erneut.",
     "network": "Der TallyDeck-Server ist nicht erreichbar.",

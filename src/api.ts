@@ -11,6 +11,9 @@ import type {
   SyncResult,
   Topic,
   TopicColor,
+  TwitchImportResult,
+  TwitchStream,
+  TwitchStreamsResponse,
   VersionInfo,
 } from './types';
 
@@ -119,4 +122,18 @@ export const api = {
     category?: string | null;
     hideShorts: boolean;
   }) => request<{ updated: number }>('POST', '/api/items/complete-all', params),
+
+  getTwitchStreams: () => request<TwitchStreamsResponse>('GET', '/api/twitch/streams'),
+
+  addTwitchChannel: (channel: string) =>
+    request<{ channel: TwitchStream }>('POST', '/api/twitch/channels', { channel }).then((r) => r.channel),
+
+  deleteTwitchChannel: (id: number) => request<void>('DELETE', `/api/twitch/channels/${id}`),
+
+  syncTwitch: () => request<TwitchStreamsResponse>('POST', '/api/twitch/sync'),
+
+  exportTwitchChannelsUrl: () => '/api/twitch/channels/export',
+
+  importTwitchChannels: (content: string) =>
+    request<TwitchImportResult>('POST', '/api/twitch/channels/import', { content }),
 };

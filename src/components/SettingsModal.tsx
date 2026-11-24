@@ -20,7 +20,14 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import type { FeedType, FullBackupPayload, PollIntervalMinutes, ServerSettings, VersionInfo } from '../types';
+import type {
+  FeedType,
+  FullBackupPayload,
+  PollIntervalMinutes,
+  ServerSettings,
+  TwitchPollIntervalMinutes,
+  VersionInfo,
+} from '../types';
 import { api } from '../api';
 import { useI18n } from '../i18n/I18nContext';
 import {
@@ -43,6 +50,7 @@ import { cn, errorText } from '../utils/format';
 import { InfoTab } from './InfoTab';
 import { ManageFeedsTab } from './ManageFeedsTab';
 import { YouTubeIcon } from './YouTubeIcon';
+import { TwitchIcon } from './TwitchIcon';
 
 export type SettingsTab = 'appearance' | 'manage' | 'feeds' | 'sync' | 'backup' | 'info';
 
@@ -59,6 +67,7 @@ interface SettingsModalProps {
 const INBOX_PRESETS = [25, 50, 100, 200, 500] as const;
 const DAYS_PRESETS = [1, 3, 7, 14, 30] as const;
 const POLL_OPTIONS: readonly PollIntervalMinutes[] = [0, 5, 15, 30, 60];
+const TWITCH_POLL_OPTIONS: readonly TwitchPollIntervalMinutes[] = [15, 30, 60, 120];
 const AUTO_ARCHIVE_PRESETS = [7, 14, 30, 60, 90] as const;
 
 export function SettingsModal({
@@ -86,21 +95,23 @@ export function SettingsModal({
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
-  // Server settings state (poll interval + auto-archive unread items)
+  // Server settings state (poll interval + twitch poll interval + auto-archive unread items)
   const [serverSettings, setServerSettings] = useState<ServerSettings>({
     pollIntervalMinutes: 15,
+    twitchPollIntervalMinutes: 15,
     autoArchiveEnabled: false,
     autoArchiveDays: 30,
   });
   const [savingServer, setSavingServer] = useState(false);
 
-  // OPML + Backup status messages
-  const [importingType, setImportingType] = useState<FeedType | null>(null);
+  // OPML + Twitch + Backup status messages
+  const [importingType, setImportingType] = useState<FeedType | 'twitch' | null>(null);
   const [backupBusy, setBackupBusy] = useState<'export' | 'restore' | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError?: boolean } | null>(null);
 
   const ytFileRef = useRef<HTMLInputElement | null>(null);
   const rssFileRef = useRef<HTMLInputElement | null>(null);
+  const twitchFileRef = useRef<HTMLInputElement | null>(null);
   const backupFileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -174,6 +185,32 @@ export function SettingsModal({
       setImportingType(null);
       if (ytFileRef.current) ytFileRef.current.value = '';
       if (rssFileRef.current) rssFileRef.current.value = '';
+    }
+  }
+
+  async function handleTwitchImport(file: File | undefined) {
+    if (!file || isBusy) return;
+    setImportingType('twitch');
+    setStatusMessage(null);
+    try {
+      const text = await file.text();
+      const result = await api.importTwitchChannels(text);
+      setStatusMessage({
+        text: t('settings.importResult', {
+          imported: result.imported,
+          skipped: result.skipped,
+          failed: result.failed,
+        }),
+      });
+      onImported();
+    } catch (err) {
+      setStatusMessage({
+        text: errorText(err, t),
+        isError: true,
+      });
+    } finally {
+      setImportingType(null);
+      if (twitchFileRef.current) twitchFileRef.current.value = '';
     }
   }
 
@@ -613,11 +650,38 @@ export function SettingsModal({
                         pollIntervalMinutes: Number(e.target.value) as PollIntervalMinutes,
                       })
                     }
-                    className="rounded-xl border border-line bg-surface px-3.5 py-2 text-sm font-semibold text-fg focus:border-accent focus:outline-none"
+                    className="w-48 shrink-0 rounded-xl border border-line bg-surface px-3.5 py-2 text-sm font-semibold text-fg focus:border-accent focus:outline-none"
                   >
                     {POLL_OPTIONS.map((minutes) => (
                       <option key={minutes} value={minutes}>
                         {minutes === 0 ? t('settings.pollOff') : t('settings.pollMinutes', { minutes })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Twitch Background Sync Interval Dropdown (min 15 min) */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-canvas/60 p-4">
+                  <div className="min-w-0 flex-1">
+                    <label htmlFor="settings-twitch-poll-interval" className="block text-sm font-semibold">
+                      {t('settings.twitchPollIntervalLabel')}
+                    </label>
+                    <p className="text-xs text-muted">{t('settings.twitchPollIntervalHint')}</p>
+                  </div>
+                  <select
+                    id="settings-twitch-poll-interval"
+                    value={serverSettings.twitchPollIntervalMinutes}
+                    disabled={savingServer}
+                    onChange={(e) =>
+                      void patchServerSettings({
+                        twitchPollIntervalMinutes: Number(e.target.value) as TwitchPollIntervalMinutes,
+                      })
+                    }
+                    className="w-48 shrink-0 rounded-xl border border-line bg-surface px-3.5 py-2 text-sm font-semibold text-fg focus:border-accent focus:outline-none"
+                  >
+                    {TWITCH_POLL_OPTIONS.map((minutes) => (
+                      <option key={minutes} value={minutes}>
+                        {t('settings.pollMinutes', { minutes })}
                       </option>
                     ))}
                   </select>
@@ -858,6 +922,50 @@ export function SettingsModal({
                         </a>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Twitch Channels Import & Export */}
+                <div className="space-y-3 rounded-xl border border-line bg-canvas/60 p-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15 text-accent">
+                      <TwitchIcon className="h-4.5 w-4.5" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold">{t('settings.twitchBackupTitle')}</h3>
+                      <p className="text-xs text-muted">{t('settings.twitchBackupHint')}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2.5 pt-1">
+                    <input
+                      ref={twitchFileRef}
+                      type="file"
+                      accept=".json,.txt,application/json,text/plain"
+                      className="hidden"
+                      onChange={(e) => void handleTwitchImport(e.target.files?.[0])}
+                    />
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => twitchFileRef.current?.click()}
+                      className="flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2 text-xs font-semibold text-fg transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+                    >
+                      {importingType === 'twitch' ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin text-accent" />
+                      ) : (
+                        <Upload className="h-4 w-4" />
+                      )}
+                      <span>{importingType === 'twitch' ? t('settings.importing') : t('settings.importTwitch')}</span>
+                    </button>
+                    <a
+                      href={api.exportTwitchChannelsUrl()}
+                      download
+                      className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-canvas transition-colors hover:bg-accent-strong"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>{t('settings.exportTwitch')}</span>
+                    </a>
                   </div>
                 </div>
               </div>

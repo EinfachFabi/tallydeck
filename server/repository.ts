@@ -594,8 +594,12 @@ export function getStats(db: DatabaseSync, filter: ItemFilter, now = Date.now(),
 export const VALID_POLL_INTERVALS = [0, 5, 15, 30, 60] as const;
 export type PollIntervalMinutes = (typeof VALID_POLL_INTERVALS)[number];
 
+export const VALID_TWITCH_POLL_INTERVALS = [15, 30, 60, 120] as const;
+export type TwitchPollIntervalMinutes = (typeof VALID_TWITCH_POLL_INTERVALS)[number];
+
 export interface ServerSettingsDto {
   pollIntervalMinutes: PollIntervalMinutes;
+  twitchPollIntervalMinutes: TwitchPollIntervalMinutes;
   autoArchiveEnabled: boolean;
   autoArchiveDays: number;
 }
@@ -620,8 +624,24 @@ export function normalizePollInterval(value: unknown, fallback: PollIntervalMinu
   return fallback;
 }
 
-export function getServerSettings(db: DatabaseSync, defaultPollInterval = 15): ServerSettingsDto {
+export function normalizeTwitchPollInterval(
+  value: unknown,
+  fallback: TwitchPollIntervalMinutes = 15,
+): TwitchPollIntervalMinutes {
+  const n = Number(value);
+  if ((VALID_TWITCH_POLL_INTERVALS as readonly number[]).includes(n)) {
+    return n as TwitchPollIntervalMinutes;
+  }
+  return fallback;
+}
+
+export function getServerSettings(
+  db: DatabaseSync,
+  defaultPollInterval = 15,
+  defaultTwitchPollInterval = 15,
+): ServerSettingsDto {
   const rawPoll = getSettingValue(db, 'pollIntervalMinutes');
+  const rawTwitchPoll = getSettingValue(db, 'twitchPollIntervalMinutes');
   const rawAutoEnabled = getSettingValue(db, 'autoArchiveEnabled');
   const rawAutoDays = getSettingValue(db, 'autoArchiveDays');
 
@@ -629,12 +649,17 @@ export function getServerSettings(db: DatabaseSync, defaultPollInterval = 15): S
     rawPoll !== null
       ? normalizePollInterval(rawPoll, normalizePollInterval(defaultPollInterval, 15))
       : normalizePollInterval(defaultPollInterval, 15);
+  const twitchPollIntervalMinutes =
+    rawTwitchPoll !== null
+      ? normalizeTwitchPollInterval(rawTwitchPoll, normalizeTwitchPollInterval(defaultTwitchPollInterval, 15))
+      : normalizeTwitchPollInterval(defaultTwitchPollInterval, 15);
   const autoArchiveEnabled = rawAutoEnabled === 'true' || rawAutoEnabled === '1';
   const parsedDays = Number(rawAutoDays);
   const autoArchiveDays = Number.isFinite(parsedDays) && parsedDays >= 1 ? Math.min(Math.round(parsedDays), 365) : 30;
 
   return {
     pollIntervalMinutes,
+    twitchPollIntervalMinutes,
     autoArchiveEnabled,
     autoArchiveDays,
   };
@@ -644,13 +669,18 @@ export function updateServerSettings(
   db: DatabaseSync,
   patch: Partial<ServerSettingsDto>,
   defaultPollInterval = 15,
+  defaultTwitchPollInterval = 15,
 ): ServerSettingsDto {
-  const current = getServerSettings(db, defaultPollInterval);
+  const current = getServerSettings(db, defaultPollInterval, defaultTwitchPollInterval);
   const next: ServerSettingsDto = {
     pollIntervalMinutes:
       patch.pollIntervalMinutes !== undefined
         ? normalizePollInterval(patch.pollIntervalMinutes, current.pollIntervalMinutes)
         : current.pollIntervalMinutes,
+    twitchPollIntervalMinutes:
+      patch.twitchPollIntervalMinutes !== undefined
+        ? normalizeTwitchPollInterval(patch.twitchPollIntervalMinutes, current.twitchPollIntervalMinutes)
+        : current.twitchPollIntervalMinutes,
     autoArchiveEnabled:
       typeof patch.autoArchiveEnabled === 'boolean' ? patch.autoArchiveEnabled : current.autoArchiveEnabled,
     autoArchiveDays:
@@ -660,9 +690,81 @@ export function updateServerSettings(
   };
 
   setSettingValue(db, 'pollIntervalMinutes', String(next.pollIntervalMinutes));
+  setSettingValue(db, 'twitchPollIntervalMinutes', String(next.twitchPollIntervalMinutes));
   setSettingValue(db, 'autoArchiveEnabled', next.autoArchiveEnabled ? 'true' : 'false');
   setSettingValue(db, 'autoArchiveDays', String(next.autoArchiveDays));
   return next;
+}
+
+// ---------- Twitch Channels ----------
+
+export interface TwitchChannelDto {
+  id: number;
+  login: string;
+  displayName: string;
+  avatarUrl: string | null;
+  createdAt: number;
+}
+
+export interface NewTwitchChannel {
+  login: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+function toTwitchChannelDto(row: Row): TwitchChannelDto {
+  return {
+    id: Number(row.id),
+    login: String(row.login),
+    displayName: String(row.display_name),
+    avatarUrl: str(row.avatar_url),
+    createdAt: Number(row.created_at),
+  };
+}
+
+export function listTwitchChannels(db: DatabaseSync): TwitchChannelDto[] {
+  const rows = db
+    .prepare('SELECT * FROM twitch_channels ORDER BY display_name COLLATE NOCASE ASC')
+    .all() as Row[];
+  return rows.map(toTwitchChannelDto);
+}
+
+export function getTwitchChannel(db: DatabaseSync, id: number): TwitchChannelDto | null {
+  const row = db.prepare('SELECT * FROM twitch_channels WHERE id = ?').get(id) as Row | undefined;
+  return row ? toTwitchChannelDto(row) : null;
+}
+
+export function findTwitchChannelByLogin(db: DatabaseSync, login: string): TwitchChannelDto | null {
+  const row = db.prepare('SELECT * FROM twitch_channels WHERE login = ?').get(login.toLowerCase()) as Row | undefined;
+  return row ? toTwitchChannelDto(row) : null;
+}
+
+export function insertTwitchChannel(db: DatabaseSync, channel: NewTwitchChannel, now = Date.now()): number {
+  const result = db
+    .prepare(
+      `INSERT INTO twitch_channels (login, display_name, avatar_url, created_at)
+       VALUES (?, ?, ?, ?)`,
+    )
+    .run(channel.login.toLowerCase(), channel.displayName, channel.avatarUrl, now);
+  return Number(result.lastInsertRowid);
+}
+
+export function updateTwitchChannelMeta(
+  db: DatabaseSync,
+  id: number,
+  meta: { displayName?: string | null; avatarUrl?: string | null },
+): void {
+  db.prepare(
+    `UPDATE twitch_channels
+        SET display_name = COALESCE(?, display_name),
+            avatar_url   = COALESCE(?, avatar_url)
+      WHERE id = ?`,
+  ).run(meta.displayName ?? null, meta.avatarUrl ?? null, id);
+}
+
+export function deleteTwitchChannel(db: DatabaseSync, id: number): boolean {
+  const result = db.prepare('DELETE FROM twitch_channels WHERE id = ?').run(id);
+  return Number(result.changes) > 0;
 }
 
 /**
@@ -722,6 +824,13 @@ export interface BackupItemRecord {
   createdAt: number;
 }
 
+export interface BackupTwitchChannelRecord {
+  login: string;
+  displayName: string;
+  avatarUrl: string | null;
+  createdAt: number;
+}
+
 export interface FullBackupPayload {
   app: 'tallydeck';
   version: number;
@@ -730,6 +839,8 @@ export interface FullBackupPayload {
   clientSettings?: Record<string, unknown>;
   /** Topic colors and topics without feeds (optional, added in 0.3). */
   topics?: TopicRecord[];
+  /** Twitch channels (optional). */
+  twitchChannels?: BackupTwitchChannelRecord[];
   feeds: BackupFeedRecord[];
   items: BackupItemRecord[];
 }
@@ -782,12 +893,20 @@ export function exportFullBackup(db: DatabaseSync, defaultPollInterval = 15, now
     createdAt: Number(row.created_at),
   }));
 
+  const twitchChannels: BackupTwitchChannelRecord[] = listTwitchChannels(db).map((ch) => ({
+    login: ch.login,
+    displayName: ch.displayName,
+    avatarUrl: ch.avatarUrl,
+    createdAt: ch.createdAt,
+  }));
+
   return {
     app: 'tallydeck',
     version: 1,
     exportedAt: now,
     serverSettings: getServerSettings(db, defaultPollInterval),
     topics: readTopicRegistry(db),
+    twitchChannels,
     feeds,
     items,
   };
@@ -893,6 +1012,28 @@ export function restoreFullBackup(
         Number.isFinite(Number(item.createdAt)) ? Number(item.createdAt) : now,
       );
       itemsRestored += 1;
+    }
+
+    if (Array.isArray(payload.twitchChannels)) {
+      const upsertTwitchStmt = db.prepare(
+        `INSERT INTO twitch_channels (login, display_name, avatar_url, created_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(login) DO UPDATE SET
+           display_name = excluded.display_name,
+           avatar_url   = COALESCE(excluded.avatar_url, twitch_channels.avatar_url)`,
+      );
+      for (const ch of payload.twitchChannels) {
+        if (typeof ch?.login !== 'string' || !ch.login.trim()) continue;
+        const login = ch.login.trim().toLowerCase();
+        const displayName =
+          typeof ch.displayName === 'string' && ch.displayName.trim() ? ch.displayName.trim() : login;
+        upsertTwitchStmt.run(
+          login,
+          displayName,
+          str(ch.avatarUrl),
+          Number.isFinite(Number(ch.createdAt)) ? Number(ch.createdAt) : now,
+        );
+      }
     }
 
     if (payload.serverSettings) {

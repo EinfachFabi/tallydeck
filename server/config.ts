@@ -45,4 +45,8 @@ export const config = {
   /** Set UPDATE_CHECK=false to disable the GitHub release check (no outgoing request). */
   updateCheck: boolFromEnv('UPDATE_CHECK', true),
   updateRepo: process.env.UPDATE_REPO?.trim() || 'EinfachFabi/tallydeck',
+  /** Optional Twitch Helix API credentials; if unset, TallyDeck uses the public Web-GQL endpoint. */
+  twitchClientId: process.env.TWITCH_CLIENT_ID?.trim() || undefined,
+  twitchClientSecret: process.env.TWITCH_CLIENT_SECRET?.trim() || undefined,
+  twitchPollIntervalMinutes: Math.max(intFromEnv('TWITCH_POLL_INTERVAL_MINUTES', 15), 15),
 };

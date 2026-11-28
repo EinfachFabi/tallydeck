@@ -321,7 +321,7 @@ export function SettingsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
-        className="flex h-[40rem] max-h-[90vh] w-full max-w-4xl animate-fade-in flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
+        className="flex h-[48rem] max-h-[92vh] w-full max-w-5xl animate-fade-in flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -782,7 +782,7 @@ export function SettingsModal({
 
             {/* TAB 4: BACKUPS & OPML */}
             {activeTab === 'backup' && (
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {/* Full Database Backup & Restore */}
                 <div className="space-y-3 rounded-xl border border-line bg-canvas/60 p-4">
                   <div className="flex items-center gap-2">

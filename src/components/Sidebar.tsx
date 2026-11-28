@@ -26,7 +26,7 @@ export function Sidebar({ collapsed, onToggle, onOpenSettings, versionInfo }: Si
   const { t } = useI18n();
   const currentVersion = versionInfo?.current ?? __APP_VERSION__;
   const updateAvailable = Boolean(versionInfo?.updateAvailable && versionInfo.latest);
-  const releaseHref = versionInfo?.releaseUrl ?? versionInfo?.releasesUrl;
+  const packageHref = versionInfo?.packageUrl ?? versionInfo?.packagesUrl;
 
   return (
     <aside
@@ -44,9 +44,9 @@ export function Sidebar({ collapsed, onToggle, onOpenSettings, versionInfo }: Si
               <div className="truncate text-base font-semibold tracking-tight">{t('app.name')}</div>
               <div className="flex items-center gap-1.5 truncate text-[10.5px] leading-tight text-muted">
                 <span className="shrink-0 tabular-nums">v{currentVersion}</span>
-                {updateAvailable && versionInfo?.latest && releaseHref && (
+                {updateAvailable && versionInfo?.latest && packageHref && (
                   <a
-                    href={releaseHref}
+                    href={packageHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     title={t('update.availableTooltip', { version: `v${versionInfo.latest}` })}

@@ -42,7 +42,7 @@ export const config = {
   pollIntervalMinutes: intFromEnv('POLL_INTERVAL_MINUTES', 15),
   staticDir: process.env.STATIC_DIR,
   appVersion: readAppVersion(),
-  /** Set UPDATE_CHECK=false to disable the GitHub release check (no outgoing request). */
+  /** Set UPDATE_CHECK=false to disable the GHCR package / GitHub tag version check (no outgoing request). */
   updateCheck: boolFromEnv('UPDATE_CHECK', true),
   updateRepo: process.env.UPDATE_REPO?.trim() || 'EinfachFabi/tallydeck',
   /** Optional Twitch Helix API credentials; if unset, TallyDeck uses the public Web-GQL endpoint. */

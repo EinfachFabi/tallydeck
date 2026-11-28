@@ -5,7 +5,7 @@
   },
   "update": {
     "badge": "{version} available",
-    "availableTooltip": "Release {version} available – open on GitHub"
+    "availableTooltip": "Version {version} available – open package on GitHub"
   },
   "nav": {
     "youtube": "YouTube",
@@ -23,7 +23,9 @@
   },
   "topbar": {
     "language": "Language",
-    "github": "View TallyDeck on GitHub"
+    "github": "View TallyDeck on GitHub",
+    "openYoutube": "Open YouTube in new tab",
+    "openTwitch": "Open Twitch in new tab"
   },
   "pages": {
     "youtube": {
@@ -205,14 +207,14 @@
       "description": "Self-hosted inbox-zero dashboard for YouTube channels and RSS feeds.",
       "githubRepo": "GitHub",
       "currentVersion": "Current version",
-      "latestVersion": "Latest release",
+      "latestVersion": "Latest version",
       "checkDisabled": "Update check disabled",
       "checking": "Checking…",
       "checkFailed": "Could not check GitHub",
       "updateAvailable": "Update available",
       "upToDate": "Up to date",
-      "noRelease": "No release published yet",
-      "changelog": "Changelog / Releases",
+      "noPackage": "No package published yet",
+      "packages": "Packages / Tags",
       "checkNow": "Check now",
       "lastChecked": "Checked {time}",
       "dockerUpdateTitle": "Docker update available",

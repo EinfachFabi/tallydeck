@@ -5,7 +5,7 @@ import { openDatabase, type DatabaseSync } from '../db.ts';
 import { DAY_MS } from '../repository.ts';
 import { createFeedService } from '../feedService.ts';
 import { buildApp } from '../app.ts';
-import { compareVersions, createVersionService } from '../versionService.ts';
+import { compareVersions, createVersionService, pickLatestVersionTag } from '../versionService.ts';
 import type { FetchText } from '../http.ts';
 import { CHANNEL_ID, YOUTUBE_CHANNEL_HTML, rssFeedXml, youtubeFeedXml } from './fixtures.ts';
 
@@ -387,11 +387,17 @@ test('exports and restores a full database backup including completion history a
   assert.equal(afterRestore.stats.totalCompleted, 1);
 });
 
-test('compareVersions and /api/version cache GitHub releases for 12h, retry errors after 1h, and support manual check', async () => {
+test('compareVersions, pickLatestVersionTag, and /api/version cache package tags for 12h, retry errors after 1h, and support manual check', async () => {
   assert.ok(compareVersions('0.3.0', '0.2.0') > 0);
   assert.ok(compareVersions('v1.10.0', '1.2.9') > 0);
   assert.equal(compareVersions('v0.2.0', '0.2.0'), 0);
   assert.ok(compareVersions('0.1.9', '0.2.0') < 0);
+
+  assert.equal(
+    pickLatestVersionTag(['latest', '0.4', 'v0.3.0', '0.5.0', '0.4.0', 'sha-1234567', '0.6.0-beta.1']),
+    '0.5.0',
+  );
+  assert.equal(pickLatestVersionTag(['latest', 'main']), null);
 
   let clock = 1_000_000;
   let calls = 0;
@@ -408,7 +414,7 @@ test('compareVersions and /api/version cache GitHub releases for 12h, retry erro
       if (shouldFail) throw new Error('network down');
       return {
         version: remoteVersion,
-        url: `https://github.com/EinfachFabi/tallydeck/releases/tag/v${remoteVersion}`,
+        url: 'https://github.com/EinfachFabi/tallydeck/pkgs/container/tallydeck',
       };
     },
   });
@@ -426,7 +432,8 @@ test('compareVersions and /api/version cache GitHub releases for 12h, retry erro
   assert.equal(body1.latest, '0.3.0');
   assert.equal(body1.updateAvailable, true);
   assert.equal(body1.dockerImage, 'ghcr.io/einfachfabi/tallydeck');
-  assert.equal(body1.releaseUrl, 'https://github.com/EinfachFabi/tallydeck/releases/tag/v0.3.0');
+  assert.equal(body1.packageUrl, 'https://github.com/EinfachFabi/tallydeck/pkgs/container/tallydeck');
+  assert.equal(body1.packagesUrl, 'https://github.com/EinfachFabi/tallydeck/pkgs/container/tallydeck');
   assert.equal(calls, 1);
 
   // Within 12 hours, cached response is returned without another fetch.

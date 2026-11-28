@@ -21,11 +21,29 @@ export function TopBar() {
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line bg-canvas/80 px-6 backdrop-blur">
-      <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-3">
         {active && (
           <>
-            <h1 className="truncate text-lg font-semibold tracking-tight">{t(`pages.${active.id}.title`)}</h1>
-            <p className="truncate text-xs text-muted">{t(`pages.${active.id}.subtitle`)}</p>
+            {active.externalUrl ? (
+              <a
+                href={active.externalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={active.externalLabelKey ? t(active.externalLabelKey) : undefined}
+                aria-label={active.externalLabelKey ? t(active.externalLabelKey) : t(active.labelKey)}
+                className="inline-flex shrink-0 items-center justify-center rounded-lg transition-transform hover:scale-110"
+              >
+                <active.brandLogo className="h-8 w-8" />
+              </a>
+            ) : (
+              <span aria-hidden="true" className="inline-flex shrink-0 items-center justify-center">
+                <active.brandLogo className="h-8 w-8" />
+              </span>
+            )}
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold tracking-tight">{t(`pages.${active.id}.title`)}</h1>
+              <p className="truncate text-xs text-muted">{t(`pages.${active.id}.subtitle`)}</p>
+            </div>
           </>
         )}
       </div>

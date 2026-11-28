@@ -148,8 +148,8 @@ export interface VersionInfo {
   current: string;
   latest: string | null;
   updateAvailable: boolean;
-  releaseUrl: string | null;
-  releasesUrl: string;
+  packageUrl: string | null;
+  packagesUrl: string;
   repoUrl: string;
   dockerImage: string;
   checkEnabled: boolean;

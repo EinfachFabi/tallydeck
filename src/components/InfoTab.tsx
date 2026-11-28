@@ -11,7 +11,7 @@ interface InfoTabProps {
 }
 
 const DEFAULT_REPO_URL = 'https://github.com/EinfachFabi/tallydeck';
-const DEFAULT_RELEASES_URL = `${DEFAULT_REPO_URL}/releases`;
+const DEFAULT_PACKAGES_URL = `${DEFAULT_REPO_URL}/pkgs/container/tallydeck`;
 
 /** Copies text, falling back to a temporary textarea when navigator.clipboard is unavailable (plain HTTP LAN). */
 async function copyText(text: string): Promise<boolean> {
@@ -46,7 +46,7 @@ export function InfoTab({ versionInfo, onVersionChange }: InfoTabProps) {
 
   const currentVersion = versionInfo?.current ?? __APP_VERSION__;
   const repoUrl = versionInfo?.repoUrl ?? DEFAULT_REPO_URL;
-  const changelogUrl = versionInfo?.releaseUrl ?? versionInfo?.releasesUrl ?? DEFAULT_RELEASES_URL;
+  const packagesUrl = versionInfo?.packageUrl ?? versionInfo?.packagesUrl ?? DEFAULT_PACKAGES_URL;
   const dockerPullCmd = versionInfo ? `docker pull ${versionInfo.dockerImage}:latest` : '';
   const dockerComposeCmd = 'docker compose pull && docker compose up -d';
 
@@ -135,7 +135,7 @@ export function InfoTab({ versionInfo, onVersionChange }: InfoTabProps) {
                   )}
                 </>
               ) : (
-                <span className="text-xs text-muted">{t('settings.info.noRelease')}</span>
+                <span className="text-xs text-muted">{t('settings.info.noPackage')}</span>
               )}
             </div>
           </div>
@@ -144,12 +144,12 @@ export function InfoTab({ versionInfo, onVersionChange }: InfoTabProps) {
         <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-line/60 pt-3">
           <div className="flex flex-wrap items-center gap-2">
             <a
-              href={changelogUrl}
+              href={packagesUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-fg transition-colors hover:border-accent hover:text-accent"
             >
-              <span>{t('settings.info.changelog')}</span>
+              <span>{t('settings.info.packages')}</span>
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
 
